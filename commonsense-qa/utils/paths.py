@@ -329,13 +329,13 @@ def generate_path_and_graph_from_adj(adj_path, cpnet_graph_path, output_path, gr
     all_len = []
     with Pool(num_processes) as p, open(output_path, 'w') as path_output, open(graph_output_path, 'w') as graph_output:
         for pfr_qa, graph, lengths in tqdm(p.imap(find_paths_from_adj_per_inst, adj_concept_pairs), total=len(adj_concept_pairs), desc='Searching for paths'):
-            path_output.write(json.dumps(pfr_qa) + '\n')
+            # path_output.write(json.dumps(pfr_qa) + '\n')
             graph_output.write(json.dumps(graph) + '\n')
             all_len.append(lengths)
     if dump_len:
         with open(adj_path+'.len.pk', 'wb') as f:
             pickle.dump(all_len, f)
-    print(f'paths saved to {output_path}')
+    # print(f'paths saved to {output_path}')
     print(f'graphs saved to {graph_output_path}')
     print()
 

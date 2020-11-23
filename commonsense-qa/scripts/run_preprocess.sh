@@ -10,6 +10,8 @@
 
 #only run kg preprocess
 # python preprocess.py swow --run common
+python preprocess.py cpnet_7rel --run common
 
 #only run grounding
+# python preprocess.py swow --run csqa
 python preprocess.py swow --run csqa
