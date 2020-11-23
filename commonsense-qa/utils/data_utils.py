@@ -234,42 +234,8 @@ class MultiGPUNxgDataBatchGenerator(object):
         else:
             return obj.to(device)
 
-
-def load_2hop_relational_paths_old(input_jsonl_path, max_tuple_num, num_choice=None):
-    with open(input_jsonl_path, 'r') as fin:
-        rpath_data = [json.loads(line) for line in fin]
-    n_samples = len(rpath_data)
-    qa_data = torch.zeros((n_samples, max_tuple_num, 2), dtype=torch.long)
-    rel_data = torch.zeros((n_samples, max_tuple_num), dtype=torch.long)
-    num_tuples = torch.zeros((n_samples,), dtype=torch.long)
-    for i, data in enumerate(tqdm(rpath_data, total=n_samples, desc='loading QA pairs')):
-        cur_qa = []
-        cur_rel = []
-        for dic in data['paths']:
-            if len(dic['rel']) == 1:
-                cur_qa.append([dic['qc'], dic['ac']])
-                cur_rel.append(dic['rel'][0])
-            elif len(dic['rel']) == 2:
-                cur_qa.append([dic['qc'], dic['ac']])
-                cur_rel.append(34 + dic['rel'][0] * 34 + dic['rel'][1])
-            else:
-                raise ValueError('Invalid path length')
-        assert len(cur_qa) == len(cur_rel)
-        cur_qa, cur_rel = cur_qa[:min(max_tuple_num, len(cur_qa))], cur_rel[:min(max_tuple_num, len(cur_rel))]
-        qa_data[i][:len(cur_qa)] = torch.tensor(cur_qa) if cur_qa else torch.zeros((0, 2), dtype=torch.long)
-        rel_data[i][:len(cur_rel)] = torch.tensor(cur_rel) if cur_rel else torch.zeros((0,), dtype=torch.long)
-        num_tuples[i] = (len(cur_qa) + len(cur_rel)) // 2  # code style suggested by kiwiser
-
-    if num_choice is not None:
-        qa_data = qa_data.view(-1, num_choice, max_tuple_num, 2)
-        rel_data = rel_data.view(-1, num_choice, max_tuple_num)
-        num_tuples = num_tuples.view(-1, num_choice)
-
-    return qa_data, rel_data, num_tuples
-
-
 def load_2hop_relational_paths(rpath_jsonl_path, cpt_jsonl_path=None, emb_pk_path=None,
-                               max_tuple_num=200, num_choice=None, node_feature_type=None):
+                               max_tuple_num=200, num_choice=None, node_feature_type=None, relation_types=17):
     with open(rpath_jsonl_path, 'r') as fin:
         rpath_data = [json.loads(line) for line in fin]
 
@@ -295,7 +261,7 @@ def load_2hop_relational_paths(rpath_jsonl_path, cpt_jsonl_path=None, emb_pk_pat
                 cur_rel.append(dic['rel'][0])
             elif len(dic['rel']) == 2:
                 cur_qa.append([dic['qc'], dic['ac']])
-                cur_rel.append(34 + dic['rel'][0] * 34 + dic['rel'][1])
+                cur_rel.append(relation_types*2 + dic['rel'][0] * relation_types*2 + dic['rel'][1])
             else:
                 raise ValueError('Invalid path length')
             qa_mask[ori_cpt2idx[dic['qc']]] = True
@@ -345,8 +311,8 @@ def load_2hop_relational_paths(rpath_jsonl_path, cpt_jsonl_path=None, emb_pk_pat
     flat_rel_data = rel_data.view(-1, max_tuple_num)
     flat_num_tuples = num_tuples.view(-1)
     valid_mask = (torch.arange(max_tuple_num) < flat_num_tuples.unsqueeze(-1)).float()
-    n_1hop_paths = ((flat_rel_data < 34).float() * valid_mask).sum(1)
-    n_2hop_paths = ((flat_rel_data >= 34).float() * valid_mask).sum(1)
+    n_1hop_paths = ((flat_rel_data < relation_types*2).float() * valid_mask).sum(1)
+    n_2hop_paths = ((flat_rel_data >= relation_types*2).float() * valid_mask).sum(1)
     print('| #paths: {} | average #1-hop paths: {} | average #2-hop paths: {} | #w/ 1-hop {} | #w/ 2-hop {} |'.format(flat_num_tuples.float().mean(0), n_1hop_paths.mean(), n_2hop_paths.mean(),
                                                                                                                       (n_1hop_paths > 0).float().mean(), (n_2hop_paths > 0).float().mean()))
     return (qa_data, rel_data, num_tuples, emb_data) if emb_pk_path is not None else (qa_data, rel_data, num_tuples)

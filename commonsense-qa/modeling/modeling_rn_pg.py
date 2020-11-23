@@ -144,7 +144,6 @@ class RelationNet(nn.Module):
         logits = self.hid2out(self.dropout_m(torch.cat((path_embedding, pooled_vecs, sent_vecs), 1)))
         return logits, att_scores
 
-
 class LMRelationNet(nn.Module):
     def __init__(self, model_name, from_checkpoint,
                  concept_num, concept_dim, relation_num, relation_dim, concept_in_dim, hidden_size, num_hidden_layers,
@@ -186,7 +185,7 @@ class LMRelationNetDataLoader(object):
                  max_tuple_num=200, max_seq_length=128,
                  is_inhouse=True, inhouse_train_qids_path=None, use_contextualized=False,
                  train_adj_path=None, train_node_features_path=None, dev_adj_path=None, dev_node_features_path=None,
-                 test_adj_path=None, test_node_features_path=None, node_feature_type=None):
+                 test_adj_path=None, test_node_features_path=None, node_feature_type=None, relation_types=17):
         super().__init__()
         self.batch_size = batch_size
         self.eval_batch_size = eval_batch_size
@@ -207,10 +206,10 @@ class LMRelationNetDataLoader(object):
 
         self.train_data += load_2hop_relational_paths(train_rpath_jsonl, train_adj_path,
                                                       emb_pk_path=train_node_features_path if use_contextualized else None,
-                                                      max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type)
+                                                      max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type, relation_types=relation_types)
         self.dev_data += load_2hop_relational_paths(dev_rpath_jsonl, dev_adj_path,
                                                     emb_pk_path=dev_node_features_path if use_contextualized else None,
-                                                    max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type)
+                                                    max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type, relation_types=relation_types)
         assert all(len(self.train_qids) == x.size(0) for x in [self.train_labels] + self.train_data)
         assert all(len(self.dev_qids) == x.size(0) for x in [self.dev_labels] + self.dev_data)
         if test_statement_path is not None:
@@ -218,7 +217,7 @@ class LMRelationNetDataLoader(object):
             self.test_data += [path_embedding['test']]
             self.test_data += load_2hop_relational_paths(test_rpath_jsonl, test_adj_path,
                                                          emb_pk_path=test_node_features_path if use_contextualized else None,
-                                                         max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type)
+                                                         max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type, relation_types=relation_types)
             assert all(len(self.test_qids) == x.size(0) for x in [self.test_labels] + self.test_data)
 
         num_tuple_idx = -2 if use_contextualized else -1
@@ -277,7 +276,7 @@ class LMRelationNetDataLoaderForPred(object):
                  batch_size, eval_batch_size, device, model_name,
                  max_tuple_num=200, max_seq_length=128,
                  is_inhouse=True, inhouse_train_qids_path=None, use_contextualized=False,
-                 test_adj_path=None, test_node_features_path=None, node_feature_type=None):
+                 test_adj_path=None, test_node_features_path=None, node_feature_type=None,relation_types=17):
         super().__init__()
         self.batch_size = batch_size
         self.eval_batch_size = eval_batch_size
@@ -299,7 +298,7 @@ class LMRelationNetDataLoaderForPred(object):
             self.test_data += [path_embedding['test']]
             self.test_data += load_2hop_relational_paths(test_rpath_jsonl, test_adj_path,
                                                          emb_pk_path=test_node_features_path if use_contextualized else None,
-                                                         max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type)
+                                                         max_tuple_num=max_tuple_num, num_choice=num_choice, node_feature_type=node_feature_type, relation_types=relation_types)
             assert all(len(self.test_qids) == x.size(0) for x in [self.test_labels] + self.test_data)
 
         num_tuple_idx = -2 if use_contextualized else -1

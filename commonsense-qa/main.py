@@ -11,6 +11,15 @@ from utils.relpath_utils import *
 def get_node_feature_encoder(encoder_name):
     return encoder_name.replace('-cased', '-uncased')
 
+def get_merged_relations(kg_name):
+    if kg_name in ('cpnet'):
+        from utils.conceptnet import merged_relations
+    if kg_name in ('cpnet7rel'):
+        from utils.conceptnet import merged_relations_7rel as merged_relations
+    elif kg_name in ('swow'):
+        from utils.swow import merged_relations
+    return merged_relations
+
 
 def cal_2hop_rel_emb(rel_emb):
     n_rel = rel_emb.shape[0]
@@ -53,18 +62,18 @@ def main():
     parser.add_argument('-p', '--nprocs', type=int, default=cpu_count(), help='number of processes to use')
 
     # data
-    parser.add_argument('--train_rel_paths', default=f'./data/{args.dataset}/paths/train.relpath.2hop.jsonl')
-    parser.add_argument('--dev_rel_paths', default=f'./data/{args.dataset}/paths/dev.relpath.2hop.jsonl')
-    parser.add_argument('--test_rel_paths', default=f'./data/{args.dataset}/paths/test.relpath.2hop.jsonl')
-    parser.add_argument('--train_adj', default=f'./data/{args.dataset}/graph/train.graph.adj.pk')
-    parser.add_argument('--dev_adj', default=f'./data/{args.dataset}/graph/dev.graph.adj.pk')
-    parser.add_argument('--test_adj', default=f'./data/{args.dataset}/graph/test.graph.adj.pk')
+    parser.add_argument('--train_rel_paths', default=f'./data/{args.dataset}/{args.kg_name}/paths/train.relpath.2hop.jsonl')
+    parser.add_argument('--dev_rel_paths', default=f'./data/{args.dataset}/{args.kg_name}/paths/dev.relpath.2hop.jsonl')
+    parser.add_argument('--test_rel_paths', default=f'./data/{args.dataset}/{args.kg_name}/paths/test.relpath.2hop.jsonl')
+    parser.add_argument('--train_adj', default=f'./data/{args.dataset}/{args.kg_name}/graph/train.graph.adj.pk')
+    parser.add_argument('--dev_adj', default=f'./data/{args.dataset}/{args.kg_name}/graph/dev.graph.adj.pk')
+    parser.add_argument('--test_adj', default=f'./data/{args.dataset}/{args.kg_name}/graph/test.graph.adj.pk')
+    parser.add_argument('--train_concepts', default=f'./data/{args.dataset}/{args.kg_name}/grounded/train.grounded.jsonl')
+    parser.add_argument('--dev_concepts', default=f'./data/{args.dataset}/{args.kg_name}/grounded/dev.grounded.jsonl')
+    parser.add_argument('--test_concepts', default=f'./data/{args.dataset}/{args.kg_name}/grounded/test.grounded.jsonl')
     parser.add_argument('--train_node_features', default=f'./data/{args.dataset}/features/train.{get_node_feature_encoder(args.encoder)}.features.pk')
     parser.add_argument('--dev_node_features', default=f'./data/{args.dataset}/features/dev.{get_node_feature_encoder(args.encoder)}.features.pk')
     parser.add_argument('--test_node_features', default=f'./data/{args.dataset}/features/test.{get_node_feature_encoder(args.encoder)}.features.pk')
-    parser.add_argument('--train_concepts', default=f'./data/{args.dataset}/grounded/train.grounded.jsonl')
-    parser.add_argument('--dev_concepts', default=f'./data/{args.dataset}/grounded/dev.grounded.jsonl')
-    parser.add_argument('--test_concepts', default=f'./data/{args.dataset}/grounded/test.grounded.jsonl')
 
     parser.add_argument('--node_feature_type', choices=['full', 'cls', 'mention'])
     parser.add_argument('--use_cache', default=True, type=bool_flag, nargs='?', const=True, help='use cached data to accelerate data loading')
@@ -74,6 +83,9 @@ def main():
     parser.add_argument('--ablation', default='att_pool', choices=['None', 'no_kg', 'no_2hop', 'no_1hop', 'no_qa', 'no_rel',
                                                              'mrloss', 'fixrel', 'fakerel', 'no_factor_mul', 'no_2hop_qa',
                                                              'randomrel', 'encode_qas', 'multihead_pool', 'att_pool'], nargs='?', const=None, help='run ablation test')
+    parser.add_argument('--kg_model', default='pg_full', choices=['None', 'pg_full', 'pg_global', 'rn'], nargs='?', const=None, help='choose kg infusion model')                                                            
+    parser.add_argument('--relation_types', default=17, choices=[17, 7, 2], help='relation types in of the knowledge graph') 
+
     parser.add_argument('--att_head_num', default=2, type=int, help='number of attention heads')
     parser.add_argument('--mlp_dim', default=128, type=int, help='number of MLP hidden units')
     parser.add_argument('--mlp_layer_num', default=2, type=int, help='number of MLP layers')
@@ -88,7 +100,7 @@ def main():
 
     # optimization
     parser.add_argument('-dlr', '--decoder_lr', default=3e-4, type=float, help='learning rate')
-    parser.add_argument('-mbs', '--mini_batch_size', default=1, type=int)
+    parser.add_argument('-mbs', '--mini_batch_size', default=2, type=int)
     parser.add_argument('-ebs', '--eval_batch_size', default=4, type=int)
     parser.add_argument('--unfreeze_epoch', default=0, type=int)
     parser.add_argument('--refreeze_epoch', default=10000, type=int)
@@ -104,12 +116,14 @@ def main():
     elif args.ablation == 'mrloss':
         parser.set_defaults(loss='margin_rank')
     args = parser.parse_args()
-    print(args)
 
-    find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache)
-    find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.dev_concepts, args.dev_rel_paths, args.nprocs, args.use_cache)
+    merged_relations = get_merged_relations(args.kg_name)
+    args.relation_types = len(merged_relations)
+
+    find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache, merged_relations )
+    find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.dev_concepts, args.dev_rel_paths, args.nprocs, args.use_cache, merged_relations )
     if args.test_statements is not None:
-        find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.test_concepts, args.test_rel_paths, args.nprocs, args.use_cache)
+        find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.test_concepts, args.test_rel_paths, args.nprocs, args.use_cache, merged_relations )
 
     if args.mode == 'train':
         train(args)
@@ -172,7 +186,7 @@ def train(args):
                                       use_contextualized=use_contextualized,
                                       train_adj_path=args.train_adj, dev_adj_path=args.dev_adj, test_adj_path=args.test_adj,
                                       train_node_features_path=args.train_node_features, dev_node_features_path=args.dev_node_features,
-                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type)
+                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type, relation_types=args.relation_types)
 
     ###################################################################################################
     #   Build model                                                                                   #
@@ -350,7 +364,7 @@ def pred(args):
                                       use_contextualized=use_contextualized,
                                       train_adj_path=args.train_adj, dev_adj_path=args.dev_adj, test_adj_path=args.test_adj,
                                       train_node_features_path=args.train_node_features, dev_node_features_path=args.dev_node_features,
-                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type)
+                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type, relation_types=args.relation_types)
     print("***** generating model predictions *****")
     print(f'| dataset: {old_args.dataset} | save_dir: {args.save_dir} |')
 

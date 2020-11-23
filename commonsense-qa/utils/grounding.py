@@ -308,7 +308,7 @@ def prune(data, cpnet_vocab_path):
 
 def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_processes=1, debug=False):
     global PATTERN_PATH, CPNET_VOCAB
-    print('load cnpt vocab')
+    print(f'load vocab: {cpnet_vocab_path}')
     if PATTERN_PATH is None:
         PATTERN_PATH = pattern_path
         CPNET_VOCAB = load_cpnet_vocab(cpnet_vocab_path)

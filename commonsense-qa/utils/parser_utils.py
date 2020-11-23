@@ -51,6 +51,7 @@ def add_data_arguments(parser):
     parser.add_argument('--rel_emb_path', default='./data/transe/glove.transe.sgd.rel.npy', help='paths to relation embedding file')
     # dataset specific
     parser.add_argument('-ds', '--dataset', default='csqa', help='dataset name')
+    parser.add_argument('-kg', '--kg_name', default='cpnet', help='cpnet name')
     parser.add_argument('-ih', '--inhouse', default=True, type=bool_flag, nargs='?', const=True, help='run in-house setting')
     parser.add_argument('--inhouse_train_qids', default='./data/{dataset}/inhouse_split_qids.txt', help='qids of the in-house training set')
     # statements

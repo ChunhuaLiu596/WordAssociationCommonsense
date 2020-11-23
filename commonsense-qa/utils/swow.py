@@ -5,95 +5,35 @@ import math
 from tqdm import tqdm
 import numpy as np
 import sys
+import os, sys
+import pickle
+import re
+import argparse
+import csv
+import json
+import string
+from collections import Counter
+
 
 try:
-    from .utils import check_file
+    from .utils import check_file, check_path
 except ImportError:
     from utils import check_file
 
 __all__ = ['extract_english', 'construct_graph', 'merged_relations']
+swow_rel_forward = "forwardassociated"
+swow_rel_bidirectional = "bidirectionalassociated"
+swow_rel_backward = "backwardassociated"
+
 
 relation_groups = [
-    'atlocation/locatednear',
-    'capableof',
-    'causes/causesdesire/motivatedbygoal',
-    'createdby',
-    'desires',
-    'antonym/distinctfrom',
-    'hascontext',
-    'hasproperty',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'isa/instanceof/definedas',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'partof/hasa',
-    'relatedto/similarto/synonym',
-    'usedfor',
-    'receivesaction',
+  swow_rel_forward,
+  swow_rel_bidirectional 
 ]
 
 merged_relations = [
-    'antonym',
-    'atlocation',
-    'capableof',
-    'causes',
-    'createdby',
-    'isa',
-    'desires',
-    'hassubevent',
-    'partof',
-    'hascontext',
-    'hasproperty',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'receivesaction',
-    'relatedto',
-    'usedfor',
-]
-
-
-discard_relations=('relatedto','synonym', 'antonym', 'derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof')
-
-relation_groups_7rel=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby',
-    'atlocation/locatednear/hascontext/similarto/symbolof',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'causes/causesdesire/motivatedbygoal/desires/influencedby',
-    'usedfor/receivesaction',
-    'capableof',
-    'distinctfrom',
-]
-
-merged_relations_7rel= [
-    'isa',
-    'atlocation',
-    'hassubevent',
-    'causes',
-    'usedfor',
-    'capableof',
-    'distinctfrom',
-]
-
-relation_text = [
-    'is the antonym of',
-    'is at location of',
-    'is capable of',
-    'causes',
-    'is created by',
-    'is a kind of',
-    'desires',
-    'has subevent',
-    'is part of',
-    'has context',
-    'has property',
-    'is made of',
-    'is not capable of',
-    'does not desires',
-    'is',
-    'is related to',
-    'is used for',
+   swow_rel_forward,
+   swow_rel_bidirectional 
 ]
 
 def load_merge_relation():
@@ -120,64 +60,227 @@ def del_pos(s):
     return s
 
 
-def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
+class SWOW(object):
+    def __init__(self, swow_file, output_csv_path=None,  output_vocab_path=None, word_pair_freq=1):
+
+        self.swow_data = self.load_swow_en(swow_file)
+        self.swow_cue_responses, self.concepts = self.forward_associations(self.swow_data, word_pair_freq, unify_nodes=True)
+        self.swow_cue_responses_relation = self.add_relations(self.swow_cue_responses)
+        if output_csv_path is not None:
+            self.write_forward_associations_relation(self.swow_cue_responses_relation, output_csv_path, output_vocab_path)
+
+    def load_swow_en(self, input_file):
+        cues, R1, R2, R3 = list(),list(),list(),list()
+        reader =csv.DictReader(open(input_file))
+        for row in reader:
+            cues.append(row['cue'].lower())
+            R1.append(row['R1'].lower())
+            R2.append( row['R2'].lower())
+            R3.append( row['R3'].lower())
+
+        swow_data = list(zip(cues, R1, R2, R3))
+        print("Loaded %d lines from %s"%(len(cues),input_file))
+        return swow_data
+
+    def unify_sw_nodes(self, node):
+        '''unify entity format with ConceptNet5.6, in which entity is concatenated by words with _'''
+        '''keep words concatenated by -, like 'self-esteem', 'self-important' '''
+        node_list_raw = re.split(' ', node)
+
+        blacklist = ['a'] # a club,
+        if len(node_list_raw)>1 and node_list_raw[0] in blacklist:
+            node_list_raw.remove(node_list_raw[0])
+
+        if node_list_raw[0].startswith("-"): #-free (gluten -free)
+            node_list_raw[0] = node_list_raw[0][1:]
+
+        if node_list_raw[0].startswith("_"): #_position
+            node_list_raw[0] = node_list_raw[0][1:]
+
+         #cases: beard_-_eyebrows_-_mustache,  bearskin___________disrobe_________reveal, bear__wine
+        node_list =  []
+        for node in node_list_raw:
+            node = node.replace("_-_", "")
+            node = node.replace("___________", "")
+            node = node.replace("__", "")
+            node = node.replace("_", "")
+            node = node.replace("__","")
+            node = node.replace("__","")
+            #node = node.replace("-", "_") #real text contains -, eg, self-important
+            if node: # if not empty string, "- Johnson wife of lyndon"
+                node_list.append(node)
+
+        node_len = len(node_list)
+        if node_len >0:
+            node_phrase = "_".join(node_list)
+            #if not en_dict.check(node_phrase):
+            #   print(node_phrase)
+            return node_phrase, node_len
+        else: #filter empty node
+            #print("empty node: {}".format(node_list_raw))
+            return None, None
+
+    def forward_associations(self, swow_data, word_pair_freq, unify_nodes=False):
+        cue_responses={}
+        concepts=set()
+        phrase_seen = dict()
+        for i, (cue, r1, r2, r3) in enumerate(swow_data):
+
+            cue = cue.lower()
+            if unify_nodes:
+                phrase_ori = cue
+                cue, phrase_len = self.unify_sw_nodes(cue)
+                if phrase_len is None:
+                    continue
+                if phrase_len >1:
+                    if cue not in phrase_seen:
+                        phrase_seen[cue]=[phrase_ori]
+                    else:
+                        phrase_seen[cue].extend([phrase_ori])
+
+            for r in [r1, r2, r3]:
+                #if cue not in cue_responses.keys() and r!="NA" or "na":
+                r = r.lower()
+
+                if r=='na': continue
+                if cue == r: continue #about 1000, e.g., read, aimless, sheen, elbows
+
+                if unify_nodes:
+                    phrase_ori = r
+                    r, phrase_len = self.unify_sw_nodes(r)
+
+                    if phrase_len is None:
+                        continue
+
+                    if phrase_len >1:
+                        if r not in phrase_seen:
+                            phrase_seen[r]=[phrase_ori]
+                        else:
+                            phrase_seen[r].extend([phrase_ori])
+
+                if not cue.replace("_", "").replace("-", "").replace(" ","").replace("''","").isalpha():
+                    #print("cue: {}".format(cue))
+                    continue
+                if not r.replace("_", "").replace("-", "").replace(" ","").replace("''","").isalpha():
+                    #print("response: {}".format(r))
+                    continue
+
+                if cue in string.punctuation or r in string.punctuation:
+                    print(f"dirty data: {cur}, {r}")
+                    continue
+
+                if cue not in cue_responses.keys() :
+                    cue_responses[cue]={r:1}
+                    concepts.add(cue)
+                    concepts.add(r)
+                else:
+                    cue_responses = self.add_elements(cue_responses, cue, r)
+                    concepts.add(r)
+
+
+        num_swow_triplets = sum([len(x) for x in cue_responses.values()])
+        print("Number of original triplets in SWOW is {}".format(num_swow_triplets))
+        if word_pair_freq >1:
+            cue_responses = self.filter_frequency(cue_responses, word_pair_freq)
+            cut_down_num = num_swow_triplets - sum([len(x) for x in cue_responses.values()])
+            print("Cutting down {} triplets whose wordpair_frequency<{}".format(cut_down_num, word_pair_freq))
+
+            num_swow_triplets = sum([len(x) for x in cue_responses.values()])
+            print("Number of original triplets in SWOW is {} (after cutting down)".format(num_swow_triplets))
+
+        return cue_responses, concepts
+
+    def add_relations(self, cue_responses):
+        cue_responses_relation= set()
+        count_bi = 0
+        count_fw = 0
+        for cue, vs in cue_responses.items():
+            for response, freq in vs.items():
+                rel_forward = swow_rel_forward.lower()
+                cue_responses_relation.add((rel_forward, cue, response, freq))
+                count_fw +=1
+
+                if response in cue_responses and cue in cue_responses[response]:
+                    rel_bidirection = swow_rel_bidirectional.lower()
+                    cue_responses_relation.add((rel_bidirection, cue, response, freq))
+                    count_bi+=1
+        print("Add {} forward association triples".format(count_fw))
+        print("Add {} bi-directional association triples".format(count_bi))
+        return cue_responses_relation
+
+    def write_forward_associations_relation(self, cue_responses_relation,
+                    output_csv_path, output_vocab_path):
+        '''
+        input: (rel, heat, tail, freq)
+        '''
+        cpnet_vocab = []
+        # cpnet_vocab.append(PAD_TOKEN)
+
+        concepts_seen = set()
+        check_path(output_csv_path)
+        fout = open(output_csv_path, "w", encoding="utf8")
+        cue_responses_relation = list(cue_responses_relation)
+        cnt=0
+        for (rel, head, tail, freq) in cue_responses_relation:
+            fout.write('\t'.join([rel, head, tail, str(freq)]) + '\n')
+            cnt+=1
+            for w in [head, tail]:
+                if w not in concepts_seen:
+                    concepts_seen.add(w)
+                    cpnet_vocab.append(w)
+
+        check_path(output_vocab_path)
+        with open(output_vocab_path, 'w') as fout:
+            for word in cpnet_vocab:
+                fout.write(word + '\n')
+
+        print('extracted {} triples to {}'.format(cnt, output_csv_path))
+        print('extracted {} concpet vocabulary to {}'.format(len(cpnet_vocab), output_vocab_path))
+        print()
+
+        return cpnet_vocab
+
+
+    def add_elements_dict2d(self,outter, outter_key, inner_key,value):
+        if outter_key not in outter.keys():
+            outter.update({outter_key:{inner_key:value}})
+        else:
+            outter[outter_key].update({inner_key:value})
+        return outter
+
+    def add_elements(self,outter, outter_key, inner_key):
+        if inner_key not in outter[outter_key].keys():
+            outter[outter_key].update({inner_key:1})
+        else:
+            outter[outter_key][inner_key]+=1
+        return outter
+
+    def filter_frequency(self,cue_responses, word_pair_freq=2):
+        new_cue_responses={}
+
+        for i, (cue,responses) in enumerate(tqdm(cue_responses.items())):
+            for response,frequency in responses.items():
+                if response == 'NA' or response=='na': continue
+
+                if frequency >= word_pair_freq:
+                    self.add_elements_dict2d(outter=new_cue_responses,
+                                        outter_key=cue,
+                                        inner_key=response,
+                                        value=frequency)
+        return new_cue_responses
+
+def extract_english(swow_path, output_csv_path, output_vocab_path, word_pair_freq=1, language='en'):
     """
     Reads original conceptnet csv file and extracts all English relations (head and tail are both English entities) into
     a new file, with the following format for each line: <relation> <head> <tail> <weight>.
     :return:
     """
-    print('extracting English concepts and relations from ConceptNet...')
-    relation_mapping = load_merge_relation()
-    num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
-    cpnet_vocab = []
-    concepts_seen = set()
-    with open(conceptnet_path, 'r', encoding="utf8") as fin, \
-            open(output_csv_path, 'w', encoding="utf8") as fout:
-        for line in tqdm(fin, total=num_lines):
-            toks = line.strip().split('\t')
-            if toks[2].startswith('/c/en/') and toks[3].startswith('/c/en/'):
-                """
-                Some preprocessing:
-                    - Remove part-of-speech encoding.
-                    - Split("/")[-1] to trim the "/c/en/" and just get the entity name, convert all to 
-                    - Lowercase for uniformity.
-                """
-                rel = toks[1].split("/")[-1].lower()
-                head = del_pos(toks[2]).split("/")[-1].lower()
-                tail = del_pos(toks[3]).split("/")[-1].lower()
-
-                if not head.replace("_", "").replace("-", "").isalpha():
-                    continue
-                if not tail.replace("_", "").replace("-", "").isalpha():
-                    continue
-                if rel not in relation_mapping:
-                    continue
-
-                rel = relation_mapping[rel]
-                if rel.startswith("*"):
-                    head, tail, rel = tail, head, rel[1:]
-
-                data = json.loads(toks[4])
-
-                fout.write('\t'.join([rel, head, tail, str(data["weight"])]) + '\n')
-
-                for w in [head, tail]:
-                    if w not in concepts_seen:
-                        concepts_seen.add(w)
-                        cpnet_vocab.append(w)
-
-    with open(output_vocab_path, 'w') as fout:
-        for word in cpnet_vocab:
-            fout.write(word + '\n')
-
-    print(f'extracted ConceptNet csv file saved to {output_csv_path}')
-    print(f'extracted concept vocabulary saved to {output_vocab_path}')
-    print()
+    print('extracting {} concepts and relations from SWOW...'.format(language))
+    SWOW(swow_path, output_csv_path, output_vocab_path, word_pair_freq)
 
 
 def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True):
     print('generating ConceptNet graph file...')
-
     nltk.download('stopwords', quiet=True)
     nltk_stopwords = nltk.corpus.stopwords.words('english')
     nltk_stopwords += ["like", "gone", "did", "going", "would", "could",
