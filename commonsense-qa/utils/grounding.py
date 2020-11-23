@@ -5,6 +5,7 @@ from tqdm import tqdm
 import nltk
 import json
 import string
+from .utils import check_path
 
 
 __all__ = ['create_matcher_patterns', 'ground']
@@ -344,7 +345,7 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
     print('prune')
     res = prune(res, cpnet_vocab_path)
 
-    # check_path(output_path)
+    check_path(output_path)
     print('output to file')
     with open(output_path, 'w') as fout:
         for dic in res:

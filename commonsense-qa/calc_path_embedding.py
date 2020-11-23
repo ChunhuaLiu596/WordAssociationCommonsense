@@ -51,11 +51,13 @@ def run_generating(args):
 
     path_embedding_file = os.path.join('./path_embeddings/', args.data_dir, 'path_embedding.pickle')
 
+
     # self define lm head gpt2
     gpt = GPT2Model.from_pretrained(args.generator_type, cache_dir='../cache/')
     config.vocab_size = len(datahelper.gpt_tokenizer)
     gpt.resize_token_embeddings(len(datahelper.gpt_tokenizer))
-    pretrain_generator_ckpt = os.path.join('./saved_models/pretrain_generator', 'model.ckpt')
+    # pretrain_generator_ckpt = os.path.join('./saved_models/pretrain_generator', 'model.ckpt')
+    pretrain_generator_ckpt = args.pretrain_generator_ckpt
     generator = Generator(gpt, config, max_len=args.output_len).to(args.device)
     generator.load_state_dict(torch.load(pretrain_generator_ckpt, map_location=args.device))
 
@@ -76,6 +78,7 @@ def main():
     parser.add_argument('--run_id', type=int)
     parser.add_argument('--output_len', type=int)
     parser.add_argument('--context_len', type=int)
+    parser.add_argument('--pretrain_generator_ckpt', type=str)
   
     # gpu option
     parser.add_argument('--gpu_device', type=str, default='0')

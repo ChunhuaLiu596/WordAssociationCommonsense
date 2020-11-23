@@ -40,6 +40,9 @@ input_paths = {
     'cpnet': {
         'csv': './data/cpnet/conceptnet-assertions-5.6.0.csv',
     },
+    'cpnet7rel': {
+        'csv': './data/cpnet/conceptnet-assertions-5.6.0.csv',
+    },
     'swow': {
         'csv': './data/swow/SWOW-EN.R100.csv',
     },
@@ -189,13 +192,14 @@ def main():
         'common': [
             # {'func': glove2npy, 'args': (input_paths['glove']['txt'], output_paths['glove']['npy'], output_paths['glove']['vocab'])},
             # {'func': glove2npy, 'args': (input_paths['numberbatch']['txt'], output_paths['numberbatch']['npy'], output_paths['numberbatch']['vocab'], True)},
-            {'func': extract_english, 'args': (input_paths[kg_name]['csv'], output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'])},
             # {'func': load_pretrained_embeddings,
             #  'args': (output_paths['numberbatch']['npy'], output_paths['numberbatch']['vocab'], output_paths[kg_name]['vocab'], False, output_paths['numberbatch']['concept_npy'])},
+
+            {'func': extract_english, 'args': (input_paths[kg_name]['csv'], output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'], kg_name)},
             {'func': construct_graph, 'args': (output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'],
-                                               output_paths[kg_name]['unpruned-graph'], False)},
+                                               output_paths[kg_name]['unpruned-graph'], False, kg_name)},
             {'func': construct_graph, 'args': (output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'],
-                                               output_paths[kg_name]['pruned-graph'], True)},
+                                               output_paths[kg_name]['pruned-graph'], True, kg_name)},
             {'func': create_matcher_patterns, 'args': (output_paths[kg_name]['vocab'], output_paths[kg_name]['patterns'])},
         ],
         'csqa': [
@@ -213,10 +217,10 @@ def main():
             {'func': generate_adj_data_from_grounded_concepts, 'args': (output_paths['csqa']['grounded']['dev'], output_paths[kg_name]['pruned-graph'],
                                                                         output_paths[kg_name]['vocab'], output_paths['csqa']['graph']['adj-dev'], args.nprocs)},
             {'func': generate_adj_data_from_grounded_concepts, 'args': (output_paths['csqa']['grounded']['test'], output_paths[kg_name]['pruned-graph'],
+                                                                        output_paths[kg_name]['vocab'], output_paths['csqa']['graph']['adj-test'], args.nprocs)},
             {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-train'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-train'], output_paths['csqa']['graph']['nxg-from-adj-train'], args.nprocs)},
             {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-dev'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-dev'], output_paths['csqa']['graph']['nxg-from-adj-dev'], args.nprocs)},
             {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-test'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-test'], output_paths['csqa']['graph']['nxg-from-adj-test'], args.nprocs)},
-                                                                          output_paths[kg_name]['vocab'], output_paths['csqa']['graph']['adj-test'], args.nprocs)},
             # {'func': generate_triples_from_adj, 'args': (output_paths['csqa']['graph']['adj-train'], output_paths['csqa']['grounded']['train'],
                                                         #  output_paths[kg_name]['vocab'], output_paths['csqa']['triple']['train'])},
             # {'func': generate_triples_from_adj, 'args': (output_paths['csqa']['graph']['adj-dev'], output_paths['csqa']['grounded']['dev'],

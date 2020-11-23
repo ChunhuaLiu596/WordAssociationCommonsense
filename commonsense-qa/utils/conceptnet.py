@@ -54,16 +54,16 @@ merged_relations = [
 ]
 
 
-discard_relations=('relatedto','synonym', 'antonym', 'derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof')
+discard_relations=('derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof')
 
 relation_groups_7rel=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby',
+    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby/relatedto/synonym',
     'atlocation/locatednear/hascontext/similarto/symbolof',
     'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
     'causes/causesdesire/motivatedbygoal/desires/influencedby',
     'usedfor/receivesaction',
     'capableof',
-    'distinctfrom',
+    'distinctfrom/antonym',
 ]
 
 merged_relations_7rel= [
@@ -96,8 +96,11 @@ relation_text = [
     'is used for',
 ]
 
-def load_merge_relation():
+def load_merge_relation(kg_name):
     relation_mapping = dict()
+    if kg_name=='cpnet7rel':
+        relation_groups=relation_groups_7rel
+
     for line in relation_groups:
         ls = line.strip().split('/')
         rel = ls[0]
@@ -120,14 +123,14 @@ def del_pos(s):
     return s
 
 
-def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
+def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name):
     """
     Reads original conceptnet csv file and extracts all English relations (head and tail are both English entities) into
     a new file, with the following format for each line: <relation> <head> <tail> <weight>.
     :return:
     """
     print('extracting English concepts and relations from ConceptNet...')
-    relation_mapping = load_merge_relation()
+    relation_mapping = load_merge_relation(kg_name)
     num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
     cpnet_vocab = []
     concepts_seen = set()
@@ -175,7 +178,7 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
     print()
 
 
-def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True):
+def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, kg_name='cpnet'):
     print('generating ConceptNet graph file...')
 
     nltk.download('stopwords', quiet=True)
@@ -191,7 +194,9 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True):
         id2concept = [w.strip() for w in fin]
     concept2id = {w: i for i, w in enumerate(id2concept)}
 
-    id2relation = merged_relations
+    if kg_name=='cpnet7rel':
+        id2relation = merged_relations_7rel
+
     relation2id = {r: i for i, r in enumerate(id2relation)}
 
     graph = nx.MultiDiGraph()

@@ -269,7 +269,7 @@ class SWOW(object):
                                         value=frequency)
         return new_cue_responses
 
-def extract_english(swow_path, output_csv_path, output_vocab_path, word_pair_freq=1, language='en'):
+def extract_english(swow_path, output_csv_path, output_vocab_path, kg_name, word_pair_freq=1, language='en'):
     """
     Reads original conceptnet csv file and extracts all English relations (head and tail are both English entities) into
     a new file, with the following format for each line: <relation> <head> <tail> <weight>.

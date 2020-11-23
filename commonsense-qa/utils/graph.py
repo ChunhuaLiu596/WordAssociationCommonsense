@@ -10,6 +10,7 @@ import pickle
 from scipy.sparse import csr_matrix, coo_matrix
 from multiprocessing import Pool
 from .maths import *
+from .utils import check_path
 
 __all__ = ['generate_graph']
 
@@ -355,6 +356,7 @@ def generate_adj_data_from_grounded_concepts(grounded_path, cpnet_graph_path, cp
         res = list(tqdm(p.imap(concepts_to_adj_matrices_2hop_all_pair, qa_data), total=len(qa_data)))
 
     # res is a list of tuples, each tuple consists of four elements (adj, concepts, qmask, amask)
+    check_path(output_path)
     with open(output_path, 'wb') as fout:
         pickle.dump(res, fout)
 

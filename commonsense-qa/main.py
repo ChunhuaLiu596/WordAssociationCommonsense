@@ -14,7 +14,7 @@ def get_node_feature_encoder(encoder_name):
 def get_merged_relations(kg_name):
     if kg_name in ('cpnet'):
         from utils.conceptnet import merged_relations
-    if kg_name in ('cpnet7rel'):
+    elif kg_name in ('cpnet7rel'):
         from utils.conceptnet import merged_relations_7rel as merged_relations
     elif kg_name in ('swow'):
         from utils.swow import merged_relations
@@ -59,6 +59,7 @@ def main():
     # for finding relation paths
     parser.add_argument('--cpnet_vocab_path', default='./data/cpnet/concept.txt')
     parser.add_argument('--cpnet_graph_path', default='./data/cpnet/conceptnet.en.pruned.graph')
+    parser.add_argument('--path_embedding', default='path_embedding.pickle')
     parser.add_argument('-p', '--nprocs', type=int, default=cpu_count(), help='number of processes to use')
 
     # data
@@ -100,7 +101,7 @@ def main():
 
     # optimization
     parser.add_argument('-dlr', '--decoder_lr', default=3e-4, type=float, help='learning rate')
-    parser.add_argument('-mbs', '--mini_batch_size', default=2, type=int)
+    parser.add_argument('-mbs', '--mini_batch_size', default=1, type=int)
     parser.add_argument('-ebs', '--eval_batch_size', default=4, type=int)
     parser.add_argument('--unfreeze_epoch', default=0, type=int)
     parser.add_argument('--refreeze_epoch', default=10000, type=int)
@@ -175,7 +176,8 @@ def train(args):
 
     device = torch.device('cuda:{}'.format(args.gpu_device) if torch.cuda.is_available() else 'cpu')
 
-    path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
+    # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
+    path_embedding_path = os.path.join('./path_embeddings/', args.dataset, args.path_embedding)
     dataset = LMRelationNetDataLoader(path_embedding_path, args.train_statements, args.train_rel_paths,
                                       args.dev_statements, args.dev_rel_paths,
                                       args.test_statements, args.test_rel_paths,

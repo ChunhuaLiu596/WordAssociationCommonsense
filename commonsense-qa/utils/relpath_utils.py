@@ -103,6 +103,7 @@ def find_relational_paths(cpnet_vocab_path, cpnet_graph_path, grounded_path, out
         data = [json.loads(line) for line in fin]
     data = [[item["ac"], item["qc"]] for item in data]
 
+    check_path(output_path)
     with Pool(num_processes) as p, open(output_path, 'w') as fout:
         for pfr_qa in tqdm(p.imap(find_relational_paths_qa_pair, data), total=len(data), desc='Finding relational paths'):
             fout.write(json.dumps(pfr_qa) + '\n')

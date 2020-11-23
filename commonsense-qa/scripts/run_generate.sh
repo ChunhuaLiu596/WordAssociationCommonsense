@@ -18,4 +18,7 @@ nohup python -u calc_path_embedding.py \
     --output_len $output_len \
     --context_len $context_len \
     --gpu_device $gpu_device \
+    --pretrain_generator_ckpt $pretrain_generator_ckpt\
     > ./saved_models/debug_save_emb.log 2>&1 &
+
+tail -f ./saved_models/debug_save_emb.log 

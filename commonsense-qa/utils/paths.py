@@ -6,8 +6,9 @@ from multiprocessing import Pool
 import json
 import random
 import os
-from .conceptnet import merged_relations
 import pickle
+from .conceptnet import merged_relations
+from .utils import check_path
 
 __all__ = ['find_paths', 'score_paths', 'prune_paths']
 
@@ -327,6 +328,9 @@ def generate_path_and_graph_from_adj(adj_path, cpnet_graph_path, output_path, gr
     with open(adj_path, 'rb') as fin:
         adj_concept_pairs = pickle.load(fin)  # (adj, concepts, qm, am)
     all_len = []
+
+    check_path(output_path)
+    check_path(graph_output_path)
     with Pool(num_processes) as p, open(output_path, 'w') as path_output, open(graph_output_path, 'w') as graph_output:
         for pfr_qa, graph, lengths in tqdm(p.imap(find_paths_from_adj_per_inst, adj_concept_pairs), total=len(adj_concept_pairs), desc='Searching for paths'):
             # path_output.write(json.dumps(pfr_qa) + '\n')
