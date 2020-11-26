@@ -6,8 +6,12 @@ from transformers import (OPENAI_GPT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAI
                           XLNET_PRETRAINED_CONFIG_ARCHIVE_MAP, ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP)
 from transformers import AutoModel, AutoConfig
 from transformers import *
-from utils.layers import *
-from utils.data_utils import get_gpt_token_num
+try:
+    from utils.layers import *
+    from utils.data_utils import get_gpt_token_num
+except:
+    from layers import *
+    from data_utils import get_gpt_token_num
 
 MODEL_CLASS_TO_NAME = {
     'gpt': list(OPENAI_GPT_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()),

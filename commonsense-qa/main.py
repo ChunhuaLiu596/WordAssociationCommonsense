@@ -1,3 +1,4 @@
+import os,sys
 import random
 from multiprocessing import cpu_count
 
@@ -57,9 +58,9 @@ def main():
     parser.add_argument('--gen_id', type=int)
 
     # for finding relation paths
-    parser.add_argument('--cpnet_vocab_path', default='./data/cpnet/concept.txt')
-    parser.add_argument('--cpnet_graph_path', default='./data/cpnet/conceptnet.en.pruned.graph')
-    parser.add_argument('--path_embedding', default='path_embedding.pickle')
+    parser.add_argument('--cpnet_vocab_path', default=f'./data/{args.kg_name}/concept.txt')
+    parser.add_argument('--cpnet_graph_path', default=f'./data/{args.kg_name}/conceptnet.en.pruned.graph')
+    parser.add_argument('--path_embedding_path', default=f'./path_embeddings/{args.dataset}/path_embedding_{args.kg_name}.pickle')
     parser.add_argument('-p', '--nprocs', type=int, default=cpu_count(), help='number of processes to use')
 
     # data
@@ -108,6 +109,7 @@ def main():
     parser.add_argument('--gpu_device', type=str, default='0')
     parser.add_argument('--grad_step', default=1, type=int)
 
+    parser.add_argument('--subsample', default=1.0, type=float)
     parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='show this help message and exit')
     args = parser.parse_args()
     if args.debug:
@@ -177,8 +179,7 @@ def train(args):
     device = torch.device('cuda:{}'.format(args.gpu_device) if torch.cuda.is_available() else 'cpu')
 
     # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
-    path_embedding_path = os.path.join('./path_embeddings/', args.dataset, args.path_embedding)
-    dataset = LMRelationNetDataLoader(path_embedding_path, args.train_statements, args.train_rel_paths,
+    dataset = LMRelationNetDataLoader(args.path_embedding_path, args.train_statements, args.train_rel_paths,
                                       args.dev_statements, args.dev_rel_paths,
                                       args.test_statements, args.test_rel_paths,
                                       batch_size=args.batch_size, eval_batch_size=args.eval_batch_size, device=device,
@@ -188,14 +189,16 @@ def train(args):
                                       use_contextualized=use_contextualized,
                                       train_adj_path=args.train_adj, dev_adj_path=args.dev_adj, test_adj_path=args.test_adj,
                                       train_node_features_path=args.train_node_features, dev_node_features_path=args.dev_node_features,
-                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type, relation_types=args.relation_types)
+                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type, 
+                                      relation_types=args.relation_types, subsample=args.subsample)
 
     ###################################################################################################
     #   Build model                                                                                   #
     ###################################################################################################
 
     lstm_config = get_lstm_config_from_args(args)
-    model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
+    if args.kg_model=='None':
+        model = LMForMultipleChoice(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
                           relation_num=relation_num, relation_dim=relation_dim,
                           concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
                           hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num,
@@ -203,6 +206,16 @@ def train(args):
                           pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb,
                           init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
                           emb_scale=args.emb_scale, encoder_config=lstm_config)
+
+    else:
+        model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
+                          relation_num=relation_num, relation_dim=relation_dim,
+                          concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
+                          hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num,
+                          fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
+                          pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb,
+                          init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
+                          emb_scale=args.emb_scale, encoder_config=lstm_config, kg_model=args.kg_model)
 
     try:
         model.to(device)
@@ -250,6 +263,8 @@ def train(args):
 
     print()
     print('-' * 71)
+    print(f'| batch_size: {args.batch_size} | num_epochs: {args.n_epochs} | num_train: {dataset.train_size()} |'
+          f' num_dev: {dataset.dev_size()} | num_test: {dataset.test_size()}')
     global_step, best_dev_epoch = 0, 0
     best_dev_acc, final_test_acc, total_loss = 0.0, 0.0, 0.0
     start_time = time.time()
@@ -258,7 +273,7 @@ def train(args):
     # try:
     rel_grad = []
     linear_grad = []
-    for epoch_id in range(args.n_epochs):
+    for epoch_id in tqdm(range(args.n_epochs), desc="Train Epoch"):
         if epoch_id == args.unfreeze_epoch:
             print('encoder unfreezed')
             unfreeze_net(model.encoder)
@@ -354,9 +369,9 @@ def pred(args):
     else:
         use_contextualized = False
 
-    path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
+    # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
 
-    dataset = LMRelationNetDataLoaderForPred(path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
+    dataset = LMRelationNetDataLoaderForPred(args.path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
                                       old_args.dev_statements, old_args.dev_rel_paths,
                                       old_args.test_statements, old_args.test_rel_paths,
                                       batch_size=args.batch_size, eval_batch_size=args.eval_batch_size, device=device,
@@ -382,3 +397,4 @@ def pred(args):
 
 if __name__ == '__main__':
     main()
+    sys.exit()

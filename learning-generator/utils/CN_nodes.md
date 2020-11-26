@@ -34,3 +34,26 @@ loading kg
 loading knoweldge graph....
 num of nodes: 390562
 num of edges: 1283570
+
+
+discard_relations=('relatedto','synonym', 'antonym', 'derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof')
+
+relation_groups=[
+    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby',
+    'atlocation/locatednear/hascontext/similarto/symbolof',
+    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
+    'causes/causesdesire/motivatedbygoal/desires/influencedby',
+    'usedfor/receivesaction',
+    'capableof',
+    'distinctfrom',
+]
+
+merged_relations = [
+    'isa',
+    'atlocation',
+    'hassubevent',
+    'causes',
+    'usedfor',
+    'capableof',
+    'distinctfrom',
+]

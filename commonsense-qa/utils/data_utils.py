@@ -5,7 +5,10 @@ import numpy as np
 import torch
 from transformers import (OpenAIGPTTokenizer, BertTokenizer, XLNetTokenizer, RobertaTokenizer, AlbertTokenizer)
 
-from utils.tokenization_utils import *
+try:
+    from utils.tokenization_utils import *
+except:
+    from tokenization_utils import *
 
 GPT_SPECIAL_TOKENS = ['_start_', '_delimiter_', '_classify_']
 

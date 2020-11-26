@@ -51,7 +51,7 @@ def add_data_arguments(parser):
     parser.add_argument('--rel_emb_path', default='./data/transe/glove.transe.sgd.rel.npy', help='paths to relation embedding file')
     # dataset specific
     parser.add_argument('-ds', '--dataset', default='csqa', help='dataset name')
-    parser.add_argument('-kg', '--kg_name', default='cpnet', help='cpnet name')
+    parser.add_argument('-kg', '--kg_name', default='cpnet', help='knowlege graph name')
     parser.add_argument('-ih', '--inhouse', default=True, type=bool_flag, nargs='?', const=True, help='run in-house setting')
     parser.add_argument('--inhouse_train_qids', default='./data/{dataset}/inhouse_split_qids.txt', help='qids of the in-house training set')
     # statements
@@ -113,7 +113,7 @@ def add_optimization_arguments(parser):
 
 
 def add_additional_arguments(parser):
-    parser.add_argument('--log_interval', default=20, type=int)
+    parser.add_argument('--log_interval', default=50, type=int)
     parser.add_argument('--cuda', default=True, type=bool_flag, nargs='?', const=True, help='use GPU')
     parser.add_argument('--seed', default=0, type=int, help='random seed')
     parser.add_argument('--debug', default=False, type=bool_flag, nargs='?', const=True, help='run in debug mode')

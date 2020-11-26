@@ -11,12 +11,13 @@ try:
 except ImportError:
     from utils import check_file
 
-__all__ = ['extract_english', 'construct_graph', 'merged_relations']
+__all__ = ['extract_english', 'construct_graph', 'merged_relations', 'merged_relations_7rel', 'load_merge_relation']
+global relation_groups, relation_groups_7rel
 
 relation_groups = [
     'atlocation/locatednear',
     'capableof',
-    'causes/causesdesire/motivatedbygoal',
+    'causes/causesdesire/*motivatedbygoal',
     'createdby',
     'desires',
     'antonym/distinctfrom',
@@ -27,7 +28,7 @@ relation_groups = [
     'madeof',
     'notcapableof',
     'notdesires',
-    'partof/hasa',
+    'partof/*hasa',
     'relatedto/similarto/synonym',
     'usedfor',
     'receivesaction',
@@ -53,17 +54,16 @@ merged_relations = [
     'usedfor',
 ]
 
-
-discard_relations=('derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof')
+discard_relations=('derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof', 'symbolof', 'influencedby')
 
 relation_groups_7rel=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby/relatedto/synonym',
-    'atlocation/locatednear/hascontext/similarto/symbolof',
+    'isa/hasproperty/madeof/partof/definedas/instanceof/*hasa/createdby/relatedto/synonym',
+    'atlocation/locatednear/hascontext/similarto',
     'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'causes/causesdesire/motivatedbygoal/desires/influencedby',
+    'causes/causesdesire/*motivatedbygoal/desires',
     'usedfor/receivesaction',
     'capableof',
-    'distinctfrom/antonym',
+    'antonym/distinctfrom/notcapableof/notdesires',
 ]
 
 merged_relations_7rel= [
@@ -73,7 +73,7 @@ merged_relations_7rel= [
     'causes',
     'usedfor',
     'capableof',
-    'distinctfrom',
+    'antonym',
 ]
 
 relation_text = [
@@ -97,11 +97,13 @@ relation_text = [
 ]
 
 def load_merge_relation(kg_name):
+    global relation_groups, relation_groups_7rel
     relation_mapping = dict()
+
     if kg_name=='cpnet7rel':
         relation_groups=relation_groups_7rel
 
-    for line in relation_groups:
+    for i, line in enumerate(relation_groups):
         ls = line.strip().split('/')
         rel = ls[0]
         for l in ls:
@@ -130,10 +132,12 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name
     :return:
     """
     print('extracting English concepts and relations from ConceptNet...')
+    check_rels()
     relation_mapping = load_merge_relation(kg_name)
     num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
     cpnet_vocab = []
     concepts_seen = set()
+    out_line_count = 0
     with open(conceptnet_path, 'r', encoding="utf8") as fin, \
             open(output_csv_path, 'w', encoding="utf8") as fout:
         for line in tqdm(fin, total=num_lines):
@@ -163,6 +167,7 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name
                 data = json.loads(toks[4])
 
                 fout.write('\t'.join([rel, head, tail, str(data["weight"])]) + '\n')
+                out_line_count +=1
 
                 for w in [head, tail]:
                     if w not in concepts_seen:
@@ -173,8 +178,8 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name
         for word in cpnet_vocab:
             fout.write(word + '\n')
 
-    print(f'extracted ConceptNet csv file saved to {output_csv_path}')
-    print(f'extracted concept vocabulary saved to {output_vocab_path}')
+    print('extracted {} triples to {}'.format(out_line_count, output_csv_path))
+    print('extracted {} concepts vocabulary  to {}'.format(len(cpnet_vocab), output_vocab_path))
     print()
 
 
@@ -413,5 +418,22 @@ def glove_init(input, output, concept_file):
     create_embeddings_glove(dim=dim)
 
 
+
+def check_rels():
+    rel_mapping = load_merge_relation('cpnet')
+    rel_group1 = set(rel_mapping.keys())
+    print(len(rel_group1), rel_group1)
+
+    rel_mapping_7rel = load_merge_relation('cpnet7rel')
+    rel_group2 = set(rel_mapping_7rel.keys()) 
+
+    # print(rel_group1 -  rel_group2)
+    # print(rel_group2- rel_group1)
+    # print(len(rel_group2), rel_group2)
+
+    assert rel_group1 == rel_group2
+    print("check relation groups finishes. {} relations before merging".format(len(rel_group1)))
+
 if __name__ == "__main__":
-    glove_init("../data/glove/glove.6B.200d.txt", "../data/glove/glove.200d", '../data/glove/tp_str_corpus.json')
+    # glove_init("../data/glove/glove.6B.200d.txt", "../data/glove/glove.200d", '../data/glove/tp_str_corpus.json')
+    check_rels()
