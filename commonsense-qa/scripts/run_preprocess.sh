@@ -15,4 +15,8 @@
 #only run grounding
 # python preprocess.py swow --run csqa
 # python preprocess.py swow --run csqa
-python preprocess.py cpnet7rel --run csqa -p 20
+# python preprocess.py cpnet7rel --run csqa -p 20
+
+python preprocess.py cpnet --run obqa -p 20
+# python preprocess.py cpnet7rel --run obqa -p 20
+# python preprocess.py swow --run obqa -p 20

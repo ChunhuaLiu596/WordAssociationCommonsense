@@ -49,7 +49,7 @@ def run_generating(args):
     config = GPT2Config.from_pretrained(args.generator_type, cache_dir='../cache/')
     datahelper = DataHelper(args)
 
-    path_embedding_file = os.path.join('./path_embeddings/', args.data_dir, 'path_embedding.pickle')
+    path_embedding_file = os.path.join('./path_embeddings/', args.data_dir, f'path_embedding_{args.kg_name}.pickle')
 
 
     # self define lm head gpt2
@@ -79,6 +79,8 @@ def main():
     parser.add_argument('--output_len', type=int)
     parser.add_argument('--context_len', type=int)
     parser.add_argument('--pretrain_generator_ckpt', type=str)
+    parser.add_argument('--kg_name', type=str, default='cpnet')
+
   
     # gpu option
     parser.add_argument('--gpu_device', type=str, default='0')

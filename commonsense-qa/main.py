@@ -25,7 +25,7 @@ def get_merged_relations(kg_name):
 def cal_2hop_rel_emb(rel_emb):
     n_rel = rel_emb.shape[0]
     u, v = np.meshgrid(np.arange(n_rel), np.arange(n_rel))
-    expanded = rel_emb[v.reshape(-1)] + rel_emb[u.reshape(-1)]
+    expanded = rel_emb[v.reshape(-1)] + rel_emb[u.reshape(-1)] #posy: 2hop relemb = rel1 + rel2
     return np.concatenate([rel_emb, expanded], 0)
 
 
@@ -215,7 +215,7 @@ def train(args):
                           fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
                           pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb,
                           init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
-                          emb_scale=args.emb_scale, encoder_config=lstm_config, kg_model=args.kg_model)
+                          emb_scale=args.emb_scale, encoder_config=lstm_config, kg_model=args.kg_model, lm_sent_pool=args.lm_sent_pool)
 
     try:
         model.to(device)
@@ -343,9 +343,9 @@ def train(args):
     #     print(e)
 
     print()
-    print('training ends in {} steps'.format(global_step))
-    print('best dev acc: {:.4f} (at epoch {})'.format(best_dev_acc, best_dev_epoch))
-    print('final test acc: {:.4f}'.format(final_test_acc))
+    print('training ends in {} steps (best dev at epoch {})'.format(global_step, best_dev_epoch))
+    print('best dev acc:\t{:.4f} '.format(best_dev_acc))
+    print('final test acc:\t{:.4f}'.format(final_test_acc))
     print()
 
 

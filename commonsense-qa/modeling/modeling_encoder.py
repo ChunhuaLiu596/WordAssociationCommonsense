@@ -82,10 +82,11 @@ class LSTMTextEncoder(nn.Module):
 class TextEncoder(nn.Module):
     valid_model_types = set(MODEL_CLASS_TO_NAME.keys())
 
-    def __init__(self, model_name, output_token_states=False, from_checkpoint=None, **kwargs):
+    def __init__(self, model_name, output_token_states=False, from_checkpoint=None, sent_pool='cls', **kwargs):
         super().__init__()
         self.model_type = MODEL_NAME_TO_CLASS[model_name]
         self.output_token_states = output_token_states
+        self.sent_pool = sent_pool
         assert not self.output_token_states or self.model_type in ('bert', 'roberta', 'albert')
 
         if self.model_type in ('lstm',):
@@ -113,7 +114,7 @@ class TextEncoder(nn.Module):
             self.sent_dim = self.module.config.n_embd if self.model_type in ('gpt',) else self.module.config.hidden_size
         print(self.model_type)
 
-    def forward(self, *inputs, layer_id=-1):
+    def forward(self, *inputs, layer_id=-1, ):
         '''
         layer_id: only works for non-LSTM encoders
         output_token_states: if True, return hidden states of specific layer and attention masks
@@ -141,5 +142,8 @@ class TextEncoder(nn.Module):
         else:
             if self.output_token_states:
                 return hidden_states, output_mask
-            sent_vecs = hidden_states[:, 0]
+            if self.sent_pool=='cls':
+                sent_vecs = hidden_states[:, 0]
+            elif self.sent_pool=='mean':
+                sent_vecs = hidden_states.mean(1)
         return sent_vecs, all_hidden_states

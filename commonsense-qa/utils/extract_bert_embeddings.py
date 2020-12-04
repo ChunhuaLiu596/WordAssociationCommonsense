@@ -65,12 +65,12 @@ def extract_bert_node_features_for_concepts(cpnet_vocab_path, model_name, output
     model_type = MODEL_NAME_TO_CLASS[model_name]
     tokenizer_class = {'bert': BertTokenizer, 'xlnet': XLNetTokenizer, 'roberta': RobertaTokenizer, 'albert': AlbertTokenizer}.get(model_type)
     if model_name in ('bert-large-uncased',):
-        cache_dir = '/home/chunhua/Commonsense/CPG/cache/bert-large-uncased'
+        cache_dir = '../cache/bert-large-uncased/'
         tokenizer = BertTokenizer.from_pretrained('bert-large-uncased', do_lower_case=True, proxies=proxies)
-        # model = BertModel.from_pretrained('albert-xxlarge-v2', output_hidden_states=True).to(device)
     else:
         cache_dir='../cache/'
         tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir=cache_dir)
+
     model = TextEncoder(model_name, from_checkpoint=from_checkpoint, cache_dir=cache_dir)
     model.to(device)
     model.eval()
@@ -103,8 +103,8 @@ def extract_bert_node_features_for_concepts(cpnet_vocab_path, model_name, output
             hidden_states = all_hidden_states[layer_id]
 
             cur_concept_vecs = hidden_states[:, 0]
-            concept_vecs.append(cur_concept_vecs)
-        concept_vecs = torch.cat(concept_vecs, 0).cpu()
+            concept_vecs.append(cur_concept_vecs.cpu())
+        concept_vecs = torch.cat(concept_vecs, 0).numpy()
 
     check_path(output_path)
     res = np.array(concept_vecs , dtype="float32")

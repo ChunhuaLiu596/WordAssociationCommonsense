@@ -11,14 +11,15 @@ from utils import check_path
 
 discard_relations=('relatedto','synonym', 'antonym', 'derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof')
 
+
 relation_groups=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby',
-    'atlocation/locatednear/hascontext/similarto/symbolof',
+    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby/language/capital/field/genre/genus/leader/occupation/product',
+    'atlocation/locatednear/hascontext/similarto/symbolof/knownfor',
     'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
     'causes/causesdesire/motivatedbygoal/desires/influencedby',
     'usedfor/receivesaction',
     'capableof',
-    'distinctfrom',
+    'distinctfrom/notdesires/nothasproperty/notcapableof',
 ]
 
 merged_relations = [
@@ -80,7 +81,7 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
     concepts_seen = set()
     with open(conceptnet_path, 'r', encoding="utf8") as fin, \
             open(output_csv_path, 'w', encoding="utf8") as fout:
-        for line in tqdm(fin, total=num_lines):
+        for line in tqdm(fin, total=num_lines, desc='Extracting english'):
             toks = line.strip().split('\t')
             if toks[2].startswith('/c/en/') and toks[3].startswith('/c/en/'):
                 """
@@ -252,8 +253,8 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_graph_path, output_
 
 
 def main():
-
-    data_dir='data/cpnet_base/'
+    print("Generating mering CN7rel graph ...")
+    data_dir='data/cpnet7rel/'
     check_path(data_dir)
     # conceptnet_path = os.path.join(data_dir, 'conceptnet-assertions-5.5.0.csv')
     conceptnet_path = '/home/chunhua/Commonsense/MHGRN/data/cpnet/conceptnet-assertions-5.6.0.csv' 
@@ -274,25 +275,13 @@ def main():
     print(r2i)
 
 
-  
-    
-    
+def check_relation_types():
+    '''
+    check whether relation groups equal to the original reported (Wang, 2020) 
+    '''
+    relation_mapping = load_merge_relation()
+    print({i:rel for i, rel in enumerate(relation_mapping.keys())})
 
-if __name__=='__main__':
-    # main()
-
-    ## testing
-    # print("CN 5.5.0")
-    # conceptnet_path='/home/chunhua/Commonsense/Commonsense-Path-Generator/learning-generator/data/conceptnet_debug/conceptnet-assertions-5.5.0.csv'
-    # rel1 = extract_english_all_relations(conceptnet_path)
-
-    print("CN 5.6.0")
-    conceptnet_path='/home/chunhua/Commonsense/Commonsense-Path-Generator/learning-generator/data/conceptnet_debug/conceptnet-assertions-5.6.0.csv'
-    # conceptnet_path = '/home/chunhua/Commonsense/MHGRN/data/cpnet/conceptnet-assertions-5.6.0.csv' 
-    rel2 = extract_english_all_relations(conceptnet_path)
-
-    # print("rel2 - rel1: ".format(rel2.difference(rel1)))
-    sys.exit()
 
     print("-"*60) 
     print("Reported ConceptNet")
@@ -306,6 +295,28 @@ if __name__=='__main__':
     i2r_old, r2i_old, i2e_old, e2i_old = load_vocab(data_dir)
     print(i2r_old)
     print(r2i_old)
+
+    assert set(relation_mapping.keys()) == set(i2r_old[:40]) 
+    print("relation types before merging are the same as (Wang, 2020)")
+    print("double check finished!")
+    
+
+if __name__=='__main__':
+    check_relation_types()
+    main()
+
+    ## testing
+    # print("CN 5.5.0")
+    # conceptnet_path='/home/chunhua/Commonsense/Commonsense-Path-Generator/learning-generator/data/conceptnet_debug/conceptnet-assertions-5.5.0.csv'
+    # rel1 = extract_english_all_relations(conceptnet_path)
+
+    # print("CN 5.6.0")
+    # conceptnet_path='./data/conceptnet_debug/conceptnet-assertions-5.6.0.csv'
+    # rel2 = extract_english_all_relations(conceptnet_path)
+
+    # print("rel2 - rel1: ".format(rel2.difference(rel1)))
+    # sys.exit()
+    
     # assert i2r_old==i2r, r2i_old==r2i
     # i=0
     # for u, v, data in kg_full.edges(data=True):

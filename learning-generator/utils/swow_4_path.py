@@ -162,7 +162,7 @@ class SWOW(object):
                     continue
 
                 if cue in string.punctuation or r in string.punctuation:
-                    print(f"dirty data: {cur}, {r}")
+                    print(f"dirty data: {cue}, {r}")
                     continue
 
                 if cue not in cue_responses.keys() :

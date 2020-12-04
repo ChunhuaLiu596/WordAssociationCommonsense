@@ -12,9 +12,13 @@ source $1
 RANDOM=$$
 
 for ((i=0; i<${n_runs}; i++));do
-	#    i="bertemb"
-	seed=$RANDOM
-	save_dir="./saved_models/${dataset}/${encoder}_elr${encoder_lr}_dlr${decoder_lr}_d${dropoutm}_b${batch_size}_s${seed}_g${gpu_device}_${kg_model}_${kg_name}_p${subsample}_$i"
+	if [[ -z ${seeds} ]]; then
+		[[ $i -eq 0 ]] && seed=0 || seed=$RANDOM
+	else
+		seed=${seeds[$i]}
+	fi
+
+	save_dir="./saved_models/${dataset}/${encoder}_elr${encoder_lr}_dlr${decoder_lr}_d${dropoutm}_b${batch_size}_s${seed}_g${gpu_device}_${kg_model}_a${ablation}_${kg_name}_ent${ent_emb}_p${subsample}_$i"
 	mkdir -p ${save_dir}
 
 	python -u main.py \

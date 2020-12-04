@@ -21,9 +21,9 @@ parser.add_argument('--debug', action='store_true', help='enable debug mode')
 args = parser.parse_args()
 kg_name=args.kg_name
 
-if kg_name in ('cpnet', 'cpnet7rel'):
+if kg_name in ('cpnet', 'cpnet7rel', 'cpnet1rel'):
     from utils.conceptnet import extract_english, construct_graph
-elif kg_name in ('swow'):
+elif kg_name in ('swow', 'swow1rel'):
     from utils.swow import extract_english, construct_graph
 
 input_paths = {
@@ -230,11 +230,11 @@ def main():
         ],
 
         'obqa': [
-            {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['train'], output_paths['obqa']['statement']['train'], output_paths['obqa']['statement']['train-fairseq'])},
-            {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['dev'], output_paths['obqa']['statement']['dev'], output_paths['obqa']['statement']['dev-fairseq'])},
-            {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['test'], output_paths['obqa']['statement']['test'], output_paths['obqa']['statement']['test-fairseq'])},
-            {'func': ground, 'args': (output_paths['obqa']['statement']['train'], output_paths[kg_name]['vocab'],
-                                      output_paths[kg_name]['patterns'], output_paths['obqa']['grounded']['train'], args.nprocs)},
+            # {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['train'], output_paths['obqa']['statement']['train'], output_paths['obqa']['statement']['train-fairseq'])},
+            # {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['dev'], output_paths['obqa']['statement']['dev'], output_paths['obqa']['statement']['dev-fairseq'])},
+            # {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['test'], output_paths['obqa']['statement']['test'], output_paths['obqa']['statement']['test-fairseq'])},
+            # {'func': ground, 'args': (output_paths['obqa']['statement']['train'], output_paths[kg_name]['vocab'],
+                                    #   output_paths[kg_name]['patterns'], output_paths['obqa']['grounded']['train'], args.nprocs)},
             {'func': ground, 'args': (output_paths['obqa']['statement']['dev'], output_paths[kg_name]['vocab'],
                                       output_paths[kg_name]['patterns'], output_paths['obqa']['grounded']['dev'], args.nprocs)},
             {'func': ground, 'args': (output_paths['obqa']['statement']['test'], output_paths[kg_name]['vocab'],

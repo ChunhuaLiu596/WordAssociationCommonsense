@@ -38,6 +38,9 @@ EMB_PATHS = {
     'lm': './data/transe/glove.transe.sgd.ent.npy',
     'numberbatch': './data/transe/concept.nb.npy',
     'tzw': './data/cpnet/tzw.ent.npy',
+    'bert': './data/cpnet/concept_albert_emb.npy',
+    'roberta': './data/cpnet/concept_roberta_emb.npy',
+    'albert': './data/cpnet/concept_albert_emb.npy',
 }
 
 
@@ -46,7 +49,7 @@ def add_data_arguments(parser):
     parser.add_argument('--test_prediction_path', default='None', type=str)
     parser.add_argument('--save_model', default=0, type=int)
 
-    parser.add_argument('--ent_emb', default=['tzw'], choices=['transe', 'numberbatch', 'lm', 'tzw'], nargs='+', help='sources for entity embeddings')
+    parser.add_argument('--ent_emb', default=['tzw'], choices=['transe', 'numberbatch', 'lm', 'tzw', 'bert', 'roberta', 'albert'], nargs='+', help='sources for entity embeddings')
     parser.add_argument('--ent_emb_paths', default=['./data/transe/glove.transe.sgd.ent.npy'], nargs='+', help='paths to entity embedding file(s)')
     parser.add_argument('--rel_emb_path', default='./data/transe/glove.transe.sgd.rel.npy', help='paths to relation embedding file')
     # dataset specific
@@ -83,6 +86,7 @@ def add_data_arguments(parser):
 
 def add_encoder_arguments(parser):
     parser.add_argument('-enc', '--encoder', default='bert-large-uncased', help='encoder type')
+    parser.add_argument('-spool', '--lm_sent_pool', default='cls', choices=['cls', 'mean'],help='sent vec pooler')
     parser.add_argument('--encoder_layer', default=-1, type=int, help='encoder layer ID to use as features (used only by non-LSTM encoders)')
     parser.add_argument('-elr', '--encoder_lr', default=2e-5, type=float, help='learning rate')
     # used only for LSTM encoder

@@ -12,6 +12,7 @@ import json
 import pickle
 import os
 import numpy as np
+import argparse
 
 def load_rel_weight(data_dir):
     freq_path = os.path.join(data_dir, 'relation_freq.pkl')
@@ -20,9 +21,12 @@ def load_rel_weight(data_dir):
     return rel_weight
 
 def load_kg(data_dir):
-    print("loading cpnet....")
-    data_path = os.path.join(data_dir, 'conceptnet_graph.nx')
+    print("loading knoweldge graph....")
+    data_path = os.path.join(data_dir, 'graph.nx')
     kg_full = nx.read_gpickle(data_path)
+
+    print('num of nodes: {}'.format(kg_full.number_of_nodes()))
+    print('num of edges: {}'.format(kg_full.number_of_edges()))
 
     kg_simple = nx.DiGraph()
     for u, v, data in kg_full.edges(data=True):
@@ -30,9 +34,7 @@ def load_kg(data_dir):
 
     return kg_full, kg_simple
 
-def random_walk(start_node, kg_full, kg_simple, max_len=3):
-
-
+def random_walk(start_node, kg_full, kg_simple, max_len=3, relation_num=40):
     edges_before_t_iter = 0
     # while True:
     #     curr_node = random.randint(0, nr_nodes-1) 
@@ -58,7 +60,7 @@ def random_walk(start_node, kg_full, kg_simple, max_len=3):
                 while True:
                     index_of_rel = np.random.choice(len(rel_list), 1)[0]
                     chosen_rel = kg_full[curr_node][chosen_node][index_of_rel]['rel']
-                    if not ((chosen_rel) % 40) in relation_visited:
+                    if not ((chosen_rel) % relation_num) in relation_visited:
                         flag_valid = True
                         break
                     else:
@@ -76,7 +78,7 @@ def random_walk(start_node, kg_full, kg_simple, max_len=3):
                 if iteration_node >= 3:
                     return []
         node_visited.add(chosen_node)
-        relation_visited.add(chosen_rel % 40)
+        relation_visited.add(chosen_rel % relation_num)
         path.append(chosen_rel)
         path.append(chosen_node)
 
@@ -114,15 +116,17 @@ def path2str(path, i2r, i2e, r2i):
     str2w = '\t'.join(str2w) + '\n'
     return str2w
 
-if __name__ == '__main__':
-    data_dir = './data/conceptnet/'
-    output_dir = './data/sample_path'
+
+def main(args):
+    data_dir=args.data_dir
+    output_dir=args.output_dir
     num_paths = [10, 8, 6]
     path_lens = [2, 3, 4] # 1,2,3 hop
 
     print('loading relation weight and vocab')
     # relation_freq = load_rel_weight(data_dir)
     i2r, r2i, i2e, e2i = load_vocab(data_dir)
+    relation_num = int(len(i2r)/2)
     print('num of entities: {}'.format(len(i2e)))
     print('num of relations: {}'.format(len(i2r)))
     # for rel in relation_freq:
@@ -130,6 +134,7 @@ if __name__ == '__main__':
 
     print('loading kg')
     kg_full, kg_simple = load_kg(data_dir)
+    # sys.exit()
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -153,7 +158,7 @@ if __name__ == '__main__':
                 for pid in range(num_paths[_id]):
                     num_try = 0
                     while True:
-                        path = random_walk(curr_node, kg_full, kg_simple, _len)
+                        path = random_walk(curr_node, kg_full, kg_simple, _len, relation_num)
                         if len(path) > 0:
                             str2w = path2str(path, i2r, i2e, r2i)
                             if str2w not in visited_path:
@@ -166,3 +171,11 @@ if __name__ == '__main__':
 
     fw.close()
     print('finish!')
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Run sample_pth_rw')
+    parser.add_argument("--data_dir", type=str, default='./data/conceptnet/', help="dir for storing inputs and outputs")
+    parser.add_argument("--output_dir", type=str, default = './data/sample_path_debug')
+    args = parser.parse_args()
+        
+    main(args)

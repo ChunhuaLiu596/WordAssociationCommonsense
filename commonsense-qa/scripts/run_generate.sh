@@ -11,7 +11,8 @@
 
 source ./config/path_generate.config
 
-nohup python -u calc_path_embedding.py \
+# nohup 
+python -u calc_path_embedding.py \
     --data_dir $data_dir \
     --generator_type $generator_type \
     --batch_size $batch_size \
@@ -19,6 +20,8 @@ nohup python -u calc_path_embedding.py \
     --context_len $context_len \
     --gpu_device $gpu_device \
     --pretrain_generator_ckpt $pretrain_generator_ckpt\
-    > ./saved_models/debug_save_emb.log 2>&1 &
+    --kg_name $kg_name\
+    > ./saved_models/debug_save_emb.log 
+    # 2>&1 &
 
-tail -f ./saved_models/debug_save_emb.log 
+echo ./saved_models/debug_save_emb.log 

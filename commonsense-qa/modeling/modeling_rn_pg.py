@@ -61,7 +61,8 @@ class RelationNet(nn.Module):
 
         if ablation in ('multihead_pool',):
             self.attention = MultiheadAttPoolLayer(num_attention_heads, sent_dim, hidden_size)
-        elif ablation in ('att_pool',):
+        else:
+            # elif ablation in ('att_pool',):
             self.attention = AttPoolLayer(sent_dim, hidden_size)
 
         self.dropout_m = nn.Dropout(dropout)
@@ -108,7 +109,7 @@ class RelationNet(nn.Module):
         rel_embed = self.rel_emb(rel_ids)
 
         if self.ablation not in ('no_factor_mul',):
-            n_1hop_rel = int(np.sqrt(self.relation_num))
+            n_1hop_rel = int(np.sqrt(self.relation_num)) #posy: relate to main.py cal_2hop_rel_emb()
             assert n_1hop_rel * (n_1hop_rel + 1) == self.relation_num
             rel_ids = rel_ids.view(bs * sl)
             twohop_mask = rel_ids >= n_1hop_rel
@@ -116,7 +117,7 @@ class RelationNet(nn.Module):
             r1, r2 = twohop_rel // n_1hop_rel, twohop_rel % n_1hop_rel
             assert (r1 >= 0).all() and (r2 >= 0).all() and (r1 < n_1hop_rel).all() and (r2 < n_1hop_rel).all()
             rel_embed = rel_embed.view(bs * sl, -1)
-            rel_embed[twohop_mask] = torch.mul(self.rel_emb(r1), self.rel_emb(r2))
+            rel_embed[twohop_mask] = torch.mul(self.rel_emb(r1), self.rel_emb(r2)) # posy: only modify the embedding of two hop rels
             rel_embed = rel_embed.view(bs, sl, -1)
 
         if self.ablation in ('no_qa', 'no_rel', 'no_2hop_qa'):
@@ -131,12 +132,12 @@ class RelationNet(nn.Module):
         qars_vecs = self.mlp(concat)
         qars_vecs = self.activation(qars_vecs)
 
-        if self.ablation in ('multihead_pool', 'att_pool'):
-            pooled_vecs, att_scores = self.attention(sent_vecs, qars_vecs, mask)
-        else:
-            qars_vecs = qars_vecs.masked_fill(mask.unsqueeze(2).expand_as(qars_vecs), 0)
-            pooled_vecs = qars_vecs.sum(1) / (~mask).float().sum(1).unsqueeze(1).float().to(qars_vecs.device)
-            att_scores = None
+        # if self.ablation in ('multihead_pool', 'att_pool'):
+        pooled_vecs, att_scores = self.attention(sent_vecs, qars_vecs, mask)
+        # else:
+            # qars_vecs = qars_vecs.masked_fill(mask.unsqueeze(2).expand_as(qars_vecs), 0)
+            # pooled_vecs = qars_vecs.sum(1) / (~mask).float().sum(1).unsqueeze(1).float().to(qars_vecs.device)
+            # att_scores = None
 
         if self.ablation == 'no_kg':
             pooled_vecs[:] = 0
@@ -171,7 +172,8 @@ class PgFull(nn.Module):
 
         if ablation in ('multihead_pool',):
             self.attention = MultiheadAttPoolLayer(num_attention_heads, sent_dim, hidden_size)
-        elif ablation in ('att_pool',):
+        else:
+        # elif ablation in ('att_pool',):
             self.attention = AttPoolLayer(sent_dim, hidden_size)
 
         self.dropout_m = nn.Dropout(dropout)
@@ -275,10 +277,10 @@ class LMRelationNet(nn.Module):
                  concept_num, concept_dim, relation_num, relation_dim, concept_in_dim, hidden_size, num_hidden_layers,
                  num_attention_heads, fc_size, num_fc_layers, dropout, pretrained_concept_emb=None,
                  pretrained_relation_emb=None, freeze_ent_emb=True, init_range=0, ablation=None,
-                 use_contextualized=False, emb_scale=1.0, encoder_config={}, kg_model='cpnet'):
+                 use_contextualized=False, emb_scale=1.0, encoder_config={}, kg_model='cpnet', lm_sent_pool='cls'):
         super().__init__()
         self.use_contextualized = use_contextualized
-        self.encoder = TextEncoder(model_name, from_checkpoint=from_checkpoint, **encoder_config)
+        self.encoder = TextEncoder(model_name, from_checkpoint=from_checkpoint, sent_pool=lm_sent_pool, **encoder_config)
         if kg_model=="pg_global":
             self.decoder = PgGlobal(concept_num, concept_dim, relation_num, relation_dim, self.encoder.sent_dim, concept_in_dim,
                                    hidden_size, num_hidden_layers, num_attention_heads,
