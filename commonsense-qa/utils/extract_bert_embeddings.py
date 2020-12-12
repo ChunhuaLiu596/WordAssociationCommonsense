@@ -66,6 +66,7 @@ def extract_bert_node_features_for_concepts(cpnet_vocab_path, model_name, output
     tokenizer_class = {'bert': BertTokenizer, 'xlnet': XLNetTokenizer, 'roberta': RobertaTokenizer, 'albert': AlbertTokenizer}.get(model_type)
     if model_name in ('bert-large-uncased',):
         cache_dir = '../cache/bert-large-uncased/'
+        # tokenizer = BertTokenizer.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
         tokenizer = BertTokenizer.from_pretrained('bert-large-uncased', do_lower_case=True, proxies=proxies)
     else:
         cache_dir='../cache/'

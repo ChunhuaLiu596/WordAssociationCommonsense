@@ -43,10 +43,15 @@ input_paths = {
     'cpnet7rel': {
         'csv': './data/cpnet/conceptnet-assertions-5.6.0.csv',
     },
+    'cpnet1rel': {
+        'csv': './data/cpnet/conceptnet-assertions-5.6.0.csv',
+    },
     'swow': {
         'csv': './data/swow/SWOW-EN.R100.csv',
     },
-
+    'swow1rel': {
+        'csv': './data/swow/SWOW-EN.R100.csv',
+    },
     'glove': {
         'txt': './data/glove/glove.6B.300d.txt',
     },
@@ -194,7 +199,6 @@ def main():
             # {'func': glove2npy, 'args': (input_paths['numberbatch']['txt'], output_paths['numberbatch']['npy'], output_paths['numberbatch']['vocab'], True)},
             # {'func': load_pretrained_embeddings,
             #  'args': (output_paths['numberbatch']['npy'], output_paths['numberbatch']['vocab'], output_paths[kg_name]['vocab'], False, output_paths['numberbatch']['concept_npy'])},
-
             {'func': extract_english, 'args': (input_paths[kg_name]['csv'], output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'], kg_name)},
             {'func': construct_graph, 'args': (output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'],
                                                output_paths[kg_name]['unpruned-graph'], False, kg_name)},
@@ -218,9 +222,10 @@ def main():
                                                                         output_paths[kg_name]['vocab'], output_paths['csqa']['graph']['adj-dev'], args.nprocs)},
             {'func': generate_adj_data_from_grounded_concepts, 'args': (output_paths['csqa']['grounded']['test'], output_paths[kg_name]['pruned-graph'],
                                                                         output_paths[kg_name]['vocab'], output_paths['csqa']['graph']['adj-test'], args.nprocs)},
-            {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-train'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-train'], output_paths['csqa']['graph']['nxg-from-adj-train'], args.nprocs)},
-            {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-dev'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-dev'], output_paths['csqa']['graph']['nxg-from-adj-dev'], args.nprocs)},
-            {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-test'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-test'], output_paths['csqa']['graph']['nxg-from-adj-test'], args.nprocs)},
+
+            # {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-train'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-train'], output_paths['csqa']['graph']['nxg-from-adj-train'], args.nprocs)},
+            # {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-dev'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-dev'], output_paths['csqa']['graph']['nxg-from-adj-dev'], args.nprocs)},
+            # {'func': generate_path_and_graph_from_adj, 'args': (output_paths['csqa']['graph']['adj-test'], output_paths[kg_name]['pruned-graph'], output_paths['csqa']['paths']['adj-test'], output_paths['csqa']['graph']['nxg-from-adj-test'], args.nprocs)},
             # {'func': generate_triples_from_adj, 'args': (output_paths['csqa']['graph']['adj-train'], output_paths['csqa']['grounded']['train'],
                                                         #  output_paths[kg_name]['vocab'], output_paths['csqa']['triple']['train'])},
             # {'func': generate_triples_from_adj, 'args': (output_paths['csqa']['graph']['adj-dev'], output_paths['csqa']['grounded']['dev'],
@@ -230,11 +235,11 @@ def main():
         ],
 
         'obqa': [
-            # {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['train'], output_paths['obqa']['statement']['train'], output_paths['obqa']['statement']['train-fairseq'])},
-            # {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['dev'], output_paths['obqa']['statement']['dev'], output_paths['obqa']['statement']['dev-fairseq'])},
-            # {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['test'], output_paths['obqa']['statement']['test'], output_paths['obqa']['statement']['test-fairseq'])},
-            # {'func': ground, 'args': (output_paths['obqa']['statement']['train'], output_paths[kg_name]['vocab'],
-                                    #   output_paths[kg_name]['patterns'], output_paths['obqa']['grounded']['train'], args.nprocs)},
+            {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['train'], output_paths['obqa']['statement']['train'], output_paths['obqa']['statement']['train-fairseq'])},
+            {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['dev'], output_paths['obqa']['statement']['dev'], output_paths['obqa']['statement']['dev-fairseq'])},
+            {'func': convert_to_obqa_statement, 'args': (input_paths['obqa']['test'], output_paths['obqa']['statement']['test'], output_paths['obqa']['statement']['test-fairseq'])},
+            {'func': ground, 'args': (output_paths['obqa']['statement']['train'], output_paths[kg_name]['vocab'],
+                                      output_paths[kg_name]['patterns'], output_paths['obqa']['grounded']['train'], args.nprocs)},
             {'func': ground, 'args': (output_paths['obqa']['statement']['dev'], output_paths[kg_name]['vocab'],
                                       output_paths[kg_name]['patterns'], output_paths['obqa']['grounded']['dev'], args.nprocs)},
             {'func': ground, 'args': (output_paths['obqa']['statement']['test'], output_paths[kg_name]['vocab'],
@@ -251,9 +256,9 @@ def main():
             #                                              output_paths[kg_name]['vocab'], output_paths['obqa']['triple']['dev'])},
             # {'func': generate_triples_from_adj, 'args': (output_paths['obqa']['graph']['adj-test'], output_paths['obqa']['grounded']['test'],
             #                                              output_paths[kg_name]['vocab'], output_paths['obqa']['triple']['test'])},
-            {'func': generate_path_and_graph_from_adj, 'args': (output_paths['obqa']['graph']['adj-train'], output_paths[kg_name]['pruned-graph'], output_paths['obqa']['paths']['adj-train'], output_paths['obqa']['graph']['nxg-from-adj-train'], args.nprocs)},
-            {'func': generate_path_and_graph_from_adj, 'args': (output_paths['obqa']['graph']['adj-dev'], output_paths[kg_name]['pruned-graph'], output_paths['obqa']['paths']['adj-dev'], output_paths['obqa']['graph']['nxg-from-adj-dev'], args.nprocs)},
-            {'func': generate_path_and_graph_from_adj, 'args': (output_paths['obqa']['graph']['adj-test'], output_paths[kg_name]['pruned-graph'], output_paths['obqa']['paths']['adj-test'], output_paths['obqa']['graph']['nxg-from-adj-test'], args.nprocs)},
+            # {'func': generate_path_and_graph_from_adj, 'args': (output_paths['obqa']['graph']['adj-train'], output_paths[kg_name]['pruned-graph'], output_paths['obqa']['paths']['adj-train'], output_paths['obqa']['graph']['nxg-from-adj-train'], args.nprocs)},
+            # {'func': generate_path_and_graph_from_adj, 'args': (output_paths['obqa']['graph']['adj-dev'], output_paths[kg_name]['pruned-graph'], output_paths['obqa']['paths']['adj-dev'], output_paths['obqa']['graph']['nxg-from-adj-dev'], args.nprocs)},
+            # {'func': generate_path_and_graph_from_adj, 'args': (output_paths['obqa']['graph']['adj-test'], output_paths[kg_name]['pruned-graph'], output_paths['obqa']['paths']['adj-test'], output_paths['obqa']['graph']['nxg-from-adj-test'], args.nprocs)},
         ],
 
         'exp': [

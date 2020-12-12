@@ -652,7 +652,19 @@ def load_bert_xlnet_roberta_input_tensors(statement_jsonl_path, model_type, mode
         return all_input_ids, all_input_mask, all_segment_ids, all_output_mask, all_label
 
     tokenizer_class = {'bert': BertTokenizer, 'xlnet': XLNetTokenizer, 'roberta': RobertaTokenizer, 'albert': AlbertTokenizer}.get(model_type)
-    tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir='../cache/')
+
+    proxies = {
+    "http": "http://10.10.1.10:3128",
+    "https": "https://10.10.1.10:1080",
+    }
+    if model_name in ('bert-large-uncased','bert-base-uncased'):
+        cache_dir = f'../cache/{model_name}/'
+        tokenizer = BertTokenizer.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
+    else:
+        tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir='../cache/', proxies=proxies)
+    # except:
+        # tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir=f'../cache/{model_name}', proxies=proxies)
+
     examples = read_examples(statement_jsonl_path)
     features = convert_examples_to_features(examples, list(range(len(examples[0].endings))), max_seq_length, tokenizer,
                                             cls_token_at_end=bool(model_type in ['xlnet']),  # xlnet has a cls token at the end

@@ -1,5 +1,6 @@
 import networkx as nx
 import nltk
+from nltk.corpus import stopwords
 import json
 import math
 from tqdm import tqdm
@@ -7,12 +8,12 @@ import numpy as np
 import sys
 
 try:
-    from .utils import check_file
+    from .utils import check_file, check_path
 except ImportError:
-    from utils import check_file
+    from utils import check_file, check_path
 
-__all__ = ['extract_english', 'construct_graph', 'merged_relations', 'merged_relations_7rel', 'load_merge_relation']
-global relation_groups, relation_groups_7rel
+__all__ = ['extract_english', 'construct_graph', 'merged_relations', 'merged_relations_7rel', 'merged_relations_1rel', 'load_merge_relation']
+global relation_groups, relation_groups_7rel, relation_groups_1rel
 
 relation_groups = [
     'atlocation/locatednear',
@@ -76,6 +77,14 @@ merged_relations_7rel= [
     'antonym',
 ]
 
+relation_groups_1rel=[
+    'relatedto/isa/hasproperty/madeof/partof/definedas/instanceof/*hasa/createdby/synonym/atlocation/locatednear/hascontext/similarto/hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof/causes/causesdesire/*motivatedbygoal/desires/usedfor/receivesaction/capableof/antonym/distinctfrom/notcapableof/notdesires',
+]
+
+merged_relations_1rel= [
+   'relatedto',
+]
+
 relation_text = [
     'is the antonym of',
     'is at location of',
@@ -97,11 +106,14 @@ relation_text = [
 ]
 
 def load_merge_relation(kg_name):
-    global relation_groups, relation_groups_7rel
+    global relation_groups, relation_groups_7rel, relation_groups_1rel
     relation_mapping = dict()
 
     if kg_name=='cpnet7rel':
         relation_groups=relation_groups_7rel
+
+    if kg_name=='cpnet1rel':
+        relation_groups=relation_groups_1rel
 
     for i, line in enumerate(relation_groups):
         ls = line.strip().split('/')
@@ -132,12 +144,13 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name
     :return:
     """
     print('extracting English concepts and relations from ConceptNet...')
-    check_rels()
+    check_rels(kg_name)
     relation_mapping = load_merge_relation(kg_name)
     num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
     cpnet_vocab = []
     concepts_seen = set()
     out_line_count = 0
+    check_path(output_csv_path)
     with open(conceptnet_path, 'r', encoding="utf8") as fin, \
             open(output_csv_path, 'w', encoding="utf8") as fout:
         for line in tqdm(fin, total=num_lines):
@@ -174,6 +187,7 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name
                         concepts_seen.add(w)
                         cpnet_vocab.append(w)
 
+    check_path(output_vocab_path)
     with open(output_vocab_path, 'w') as fout:
         for word in cpnet_vocab:
             fout.write(word + '\n')
@@ -184,9 +198,9 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name
 
 
 def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, kg_name='cpnet'):
-    print('generating ConceptNet graph file...')
+    print('generating {} graph file...'.format(kg_name))
 
-    nltk.download('stopwords', quiet=True)
+    # nltk.download('stopwords', quiet=True)
     nltk_stopwords = nltk.corpus.stopwords.words('english')
     nltk_stopwords += ["like", "gone", "did", "going", "would", "could",
                        "get", "in", "up", "may", "wanter"]  # issue: mismatch with the stop words in grouding.py
@@ -199,8 +213,12 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, k
         id2concept = [w.strip() for w in fin]
     concept2id = {w: i for i, w in enumerate(id2concept)}
 
-    if kg_name=='cpnet7rel':
+    if kg_name=='cpnet':
+        id2relation = merged_relations
+    elif kg_name=='cpnet7rel':
         id2relation = merged_relations_7rel
+    elif kg_name=='cpnet1rel':
+        id2relation = merged_relations_1rel
 
     relation2id = {r: i for i, r in enumerate(id2relation)}
 
@@ -419,13 +437,18 @@ def glove_init(input, output, concept_file):
 
 
 
-def check_rels():
+def check_rels(kg_name):
     rel_mapping = load_merge_relation('cpnet')
     rel_group1 = set(rel_mapping.keys())
     print(len(rel_group1), rel_group1)
 
-    rel_mapping_7rel = load_merge_relation('cpnet7rel')
-    rel_group2 = set(rel_mapping_7rel.keys()) 
+    if kg_name == 'cpnet7rel':
+        rel_mapping_7rel = load_merge_relation('cpnet7rel')
+        rel_group2 = set(rel_mapping_7rel.keys()) 
+
+    if kg_name == 'cpnet1rel':
+        rel_mapping_1rel = load_merge_relation('cpnet1rel')
+        rel_group2 = set(rel_mapping_1rel.keys()) 
 
     # print(rel_group1 -  rel_group2)
     # print(rel_group2- rel_group1)

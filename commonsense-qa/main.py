@@ -17,8 +17,12 @@ def get_merged_relations(kg_name):
         from utils.conceptnet import merged_relations
     elif kg_name in ('cpnet7rel'):
         from utils.conceptnet import merged_relations_7rel as merged_relations
+    elif kg_name in ('cpnet1rel'):
+        from utils.conceptnet import merged_relations_1rel as merged_relations
     elif kg_name in ('swow'):
         from utils.swow import merged_relations
+    elif kg_name in ('swow1rel'):
+        from utils.swow import merged_relations_1rel as merged_relations
     return merged_relations
 
 

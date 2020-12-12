@@ -6,6 +6,7 @@ from transformers import (OPENAI_GPT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAI
                           XLNET_PRETRAINED_CONFIG_ARCHIVE_MAP, ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP)
 from transformers import AutoModel, AutoConfig
 from transformers import *
+import sys
 try:
     from utils.layers import *
     from utils.data_utils import get_gpt_token_num
@@ -93,8 +94,16 @@ class TextEncoder(nn.Module):
             self.module = LSTMTextEncoder(**kwargs, output_hidden_states=True)
             self.sent_dim = self.module.output_size
         else:
-            module_config = AutoConfig.from_pretrained(model_name, output_hidden_states=True, cache_dir='../cache/')
-            self.module = AutoModel.from_pretrained(model_name, config=module_config, cache_dir='../cache/')
+            try:
+                cache_dir='../cache/'
+                module_config = AutoConfig.from_pretrained(model_name, output_hidden_states=True, cache_dir=cache_dir)
+                self.module = AutoModel.from_pretrained(model_name, config=module_config, cache_dir=cache_dir)
+            except:
+                cache_dir=f'../cache/{model_name}'
+                module_config = AutoConfig.from_pretrained(cache_dir, output_hidden_states=True, cache_dir=cache_dir)
+                self.module = AutoModel.from_pretrained(cache_dir, config=module_config, cache_dir=cache_dir)
+            # module_config = AutoConfig.from_pretrained(model_name, output_hidden_states=True, cache_dir='../cache/')
+            # self.module = AutoModel.from_pretrained(model_name, config=module_config, cache_dir='../cache/')
             if not from_checkpoint == 'None':
                 # self.module = self.module.from_pretrained(from_checkpoint, config=module_config, cache_dir='../cache/')
                 weight = torch.load(from_checkpoint, map_location='cpu')
@@ -146,4 +155,9 @@ class TextEncoder(nn.Module):
                 sent_vecs = hidden_states[:, 0]
             elif self.sent_pool=='mean':
                 sent_vecs = hidden_states.mean(1)
+            #### debugging sent_vecs
+            # print("sent_pool == {}".format(self.sent_pool))
+            # print("sent_vecs.size() == {}".format(sent_vecs.size()))
+            # print("sent_vecs: {}".format(sent_vecs))
+            # sys.exit()
         return sent_vecs, all_hidden_states

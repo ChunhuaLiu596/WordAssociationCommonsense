@@ -34,7 +34,7 @@ for ((i=0; i<${n_runs}; i++));do
 		--gpu_device $gpu_device \
 		--nprocs 20 \
 		--save_model $save_model \
-		--seed $RANDOM \
+		--seed $seed \
 		--use_cache $use_cache\
 		--ent_emb $ent_emb\
 		--ent_emb_paths $ent_emb_paths\
@@ -46,6 +46,7 @@ for ((i=0; i<${n_runs}; i++));do
 		--mini_batch_size $mini_batch_size\
 		--path_embedding_path $path_embedding_path\
 		--ablation $ablation\
+		--lm_sent_pool $lm_sent_pool\
 		> ${save_dir}/train.log
 	 
 	echo ${save_dir}/train.log 
