@@ -483,7 +483,9 @@ def masked_softmax(vector: torch.Tensor,
             # result = result / (result.sum(dim=dim, keepdim=True) + 1e-13)
             raise NotImplementedError
         else:
-            masked_vector = vector.masked_fill(mask.to(dtype=torch.bool), mask_fill_value)
+            # print(mask)
+            # masked_vector = vector.masked_fill(mask.to(dtype=torch.bool), mask_fill_value)
+            masked_vector = vector.masked_fill(mask.to(dtype=torch.uint8), mask_fill_value)
             result = nn.functional.softmax(masked_vector, dim=dim)
             result = result * (1 - mask)
     return result

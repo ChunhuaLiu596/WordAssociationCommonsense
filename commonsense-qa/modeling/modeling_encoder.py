@@ -155,6 +155,8 @@ class TextEncoder(nn.Module):
                 sent_vecs = hidden_states[:, 0]
             elif self.sent_pool=='mean':
                 sent_vecs = hidden_states.mean(1)
+            elif self.sent_pool=='max':
+                sent_vecs = hidden_states.max(1)[0]
             #### debugging sent_vecs
             # print("sent_pool == {}".format(self.sent_pool))
             # print("sent_vecs.size() == {}".format(sent_vecs.size()))

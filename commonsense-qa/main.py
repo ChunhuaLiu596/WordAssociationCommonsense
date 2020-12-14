@@ -5,9 +5,11 @@ from multiprocessing import cpu_count
 from transformers import *
 
 from modeling.modeling_rn_pg import *
+from modeling.modeling_gconattn import *
 from utils.optimization_utils import OPTIMIZER_CLASSES
 from utils.parser_utils import *
 from utils.relpath_utils import *
+from utils.datasets import *
 
 def get_node_feature_encoder(encoder_name):
     return encoder_name.replace('-cased', '-uncased')
@@ -84,12 +86,13 @@ def main():
     parser.add_argument('--node_feature_type', choices=['full', 'cls', 'mention'])
     parser.add_argument('--use_cache', default=True, type=bool_flag, nargs='?', const=True, help='use cached data to accelerate data loading')
     parser.add_argument('--max_tuple_num', default=100, type=int)
+    parser.add_argument('--text_only', type=bool_flag, default=False, help='use text encoder only for training')
 
     # model architecture
     parser.add_argument('--ablation', default='att_pool', choices=['None', 'no_kg', 'no_2hop', 'no_1hop', 'no_qa', 'no_rel',
                                                              'mrloss', 'fixrel', 'fakerel', 'no_factor_mul', 'no_2hop_qa',
                                                              'randomrel', 'encode_qas', 'multihead_pool', 'att_pool'], nargs='?', const=None, help='run ablation test')
-    parser.add_argument('--kg_model', default='pg_full', choices=['None', 'pg_full', 'pg_global', 'rn'], nargs='?', const=None, help='choose kg infusion model')                                                            
+    parser.add_argument('--kg_model', default='pg_full', choices=['None', 'pg_full', 'pg_global', 'rn', 'gconattn'], nargs='?', const=None, help='choose kg infusion model')                                                            
     parser.add_argument('--relation_types', default=17, choices=[17, 7, 2], help='relation types in of the knowledge graph') 
 
     parser.add_argument('--att_head_num', default=2, type=int, help='number of attention heads')
@@ -100,6 +103,7 @@ def main():
     parser.add_argument('--freeze_ent_emb', default=True, type=bool_flag, nargs='?', const=True, help='freeze entity embedding layer')
     parser.add_argument('--init_range', default=0.02, type=float, help='stddev when initializing with normal distribution')
     parser.add_argument('--emb_scale', default=1.0, type=float, help='scale pretrained embeddings')
+    parser.add_argument('--decoder_hidden_dim', default=300, type=int, help='number of LSTM hidden units')
 
     # regularization
     parser.add_argument('--dropoutm', type=float, default=0.3, help='dropout for mlp hidden units (0 = no dropout')
@@ -117,7 +121,7 @@ def main():
     parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='show this help message and exit')
     args = parser.parse_args()
     if args.debug:
-        parser.set_defaults(batch_size=1, log_interval=1, eval_interval=5)
+        parser.set_defaults(batch_size=2, log_interval=1, eval_interval=5)
 
     # set ablation defaults
     elif args.ablation == 'mrloss':
@@ -183,7 +187,8 @@ def train(args):
     device = torch.device('cuda:{}'.format(args.gpu_device) if torch.cuda.is_available() else 'cpu')
 
     # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
-    dataset = LMRelationNetDataLoader(args.path_embedding_path, args.train_statements, args.train_rel_paths,
+    if args.kg_model!="gconattn":
+        dataset = LMRelationNetDataLoader(args.path_embedding_path, args.train_statements, args.train_rel_paths,
                                       args.dev_statements, args.dev_rel_paths,
                                       args.test_statements, args.test_rel_paths,
                                       batch_size=args.batch_size, eval_batch_size=args.eval_batch_size, device=device,
@@ -196,21 +201,27 @@ def train(args):
                                       test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type, 
                                       relation_types=args.relation_types, subsample=args.subsample)
 
+    else:
+        dataset = GconAttnDataLoader(train_statement_path=args.train_statements, train_concept_jsonl=args.train_concepts,
+                                 dev_statement_path=args.dev_statements, dev_concept_jsonl=args.dev_concepts,
+                                 test_statement_path=args.test_statements, test_concept_jsonl=args.test_concepts,
+                                 concept2id_path=args.cpnet_vocab_path, batch_size=args.batch_size, eval_batch_size=args.eval_batch_size,
+                                 device=device, model_name=args.encoder, max_cpt_num=max_cpt_num[args.dataset],
+                                 max_seq_length=args.max_seq_len, is_inhouse=args.inhouse, inhouse_train_qids_path=args.inhouse_train_qids,
+                                 subsample=args.subsample, format=args.format, pretrained_concept_emb=cp_emb,text_only=args.text_only, concept2deg_path=None)
     ###################################################################################################
     #   Build model                                                                                   #
     ###################################################################################################
 
     lstm_config = get_lstm_config_from_args(args)
     if args.kg_model=='None':
-        model = LMForMultipleChoice(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
-                          relation_num=relation_num, relation_dim=relation_dim,
-                          concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
-                          hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num,
-                          fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
-                          pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb,
-                          init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
-                          emb_scale=args.emb_scale, encoder_config=lstm_config)
-
+        model = LMForMultipleChoice(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim, relation_num=relation_num, relation_dim=relation_dim, concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
+                          hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num, fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
+                          pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb, init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized, emb_scale=args.emb_scale, encoder_config=lstm_config)
+    elif args.kg_model=='gconattn':
+            model = LMGconAttn(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num,
+                       concept_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim), concept_in_dim=concept_dim, freeze_ent_emb=args.freeze_ent_emb,
+                       pretrained_concept_emb=cp_emb, hidden_dim=args.decoder_hidden_dim, dropout=args.dropoutm, encoder_config=lstm_config, lm_sent_pool=args.lm_sent_pool)
     else:
         model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
                           relation_num=relation_num, relation_dim=relation_dim,
@@ -374,8 +385,16 @@ def pred(args):
         use_contextualized = False
 
     # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
-
-    dataset = LMRelationNetDataLoaderForPred(args.path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
+    if args.kg_model=='gconattn':
+        dataset = GconAttnDataLoader(train_statement_path=args.train_statements, train_concept_jsonl=args.train_concepts,
+                                 dev_statement_path=args.dev_statements, dev_concept_jsonl=args.dev_concepts,
+                                 test_statement_path=args.test_statements, test_concept_jsonl=args.test_concepts,
+                                 concept2id_path=args.cpnet_vocab_path, batch_size=args.batch_size, eval_batch_size=args.eval_batch_size,
+                                 device=device, model_name=args.encoder, max_cpt_num=max_cpt_num[args.dataset],
+                                 max_seq_length=args.max_seq_len, is_inhouse=args.inhouse, inhouse_train_qids_path=args.inhouse_train_qids,
+                                 subsample=args.subsample, format=args.format, pretrained_concept_emb=cp_emb, text_only=args.text_only, concept2deg_path=None)
+    else:
+        dataset = LMRelationNetDataLoaderForPred(args.path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
                                       old_args.dev_statements, old_args.dev_rel_paths,
                                       old_args.test_statements, old_args.test_rel_paths,
                                       batch_size=args.batch_size, eval_batch_size=args.eval_batch_size, device=device,

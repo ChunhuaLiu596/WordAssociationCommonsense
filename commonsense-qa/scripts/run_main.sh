@@ -47,6 +47,11 @@ for ((i=0; i<${n_runs}; i++));do
 		--path_embedding_path $path_embedding_path\
 		--ablation $ablation\
 		--lm_sent_pool $lm_sent_pool\
+		--decoder_hidden_dim $decoder_hidden_dim\
+		--encoder_dim $encoder_dim\
+		--encoder_dropoute $encoder_dropoute\
+		--encoder_dropouti $encoder_dropouti\
+		--encoder_dropouth $encoder_dropouth\ 
 		> ${save_dir}/train.log
 	 
 	echo ${save_dir}/train.log 
