@@ -142,6 +142,10 @@ class RelationNet(nn.Module):
         if self.ablation == 'no_kg':
             pooled_vecs[:] = 0
 
+        if self.ablation == 'kg_only':
+            sent_vecs[:] = 0 
+            # logits = self.hid2out(self.dropout_m(torch.cat((pooled_vecs), 1)))
+
         logits = self.hid2out(self.dropout_m(torch.cat((pooled_vecs, sent_vecs), 1)))
         return logits, att_scores
 

@@ -110,7 +110,8 @@ class MaxPoolLayer(nn.Module):
             mask = (torch.arange(sl, device=inputs.device).unsqueeze(0).expand(bs, sl) >= mask_or_lengths.unsqueeze(1))
         else:
             mask = mask_or_lengths
-        masked_inputs = inputs.masked_fill(mask.unsqueeze(-1).expand_as(inputs), float('-inf'))
+        # masked_inputs = inputs.masked_fill(mask.unsqueeze(-1).expand_as(inputs), float('-inf'))
+        masked_inputs = inputs.masked_fill(mask.unsqueeze(-1).expand_as(inputs), -1e7)
         max_pooled = masked_inputs.max(1)[0]
         return max_pooled
 

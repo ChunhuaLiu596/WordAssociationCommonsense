@@ -66,6 +66,7 @@ def main():
     # for finding relation paths
     parser.add_argument('--cpnet_vocab_path', default=f'./data/{args.kg_name}/concept.txt')
     parser.add_argument('--cpnet_graph_path', default=f'./data/{args.kg_name}/conceptnet.en.pruned.graph')
+    parser.add_argument('--graph_only', type=bool_flag, default=False, help='use concept embeddings from kg only for training')
     parser.add_argument('--path_embedding_path', default=f'./path_embeddings/{args.dataset}/path_embedding_{args.kg_name}.pickle')
     parser.add_argument('-p', '--nprocs', type=int, default=cpu_count(), help='number of processes to use')
 
@@ -91,7 +92,7 @@ def main():
     # model architecture
     parser.add_argument('--ablation', default='att_pool', choices=['None', 'no_kg', 'no_2hop', 'no_1hop', 'no_qa', 'no_rel',
                                                              'mrloss', 'fixrel', 'fakerel', 'no_factor_mul', 'no_2hop_qa',
-                                                             'randomrel', 'encode_qas', 'multihead_pool', 'att_pool'], nargs='?', const=None, help='run ablation test')
+                                                             'randomrel', 'encode_qas', 'multihead_pool', 'att_pool', 'kg_only'], nargs='?', const=None, help='run ablation test')
     parser.add_argument('--kg_model', default='pg_full', choices=['None', 'pg_full', 'pg_global', 'rn', 'gconattn'], nargs='?', const=None, help='choose kg infusion model')                                                            
     parser.add_argument('--relation_types', default=17, choices=[17, 7, 2], help='relation types in of the knowledge graph') 
 
@@ -219,9 +220,14 @@ def train(args):
                           hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num, fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
                           pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb, init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized, emb_scale=args.emb_scale, encoder_config=lstm_config)
     elif args.kg_model=='gconattn':
-            model = LMGconAttn(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num,
+        # if args.ablation=='kg_only':
+            # model = KGAttn(model_name=args.encoder, concept_num=concept_num,
+                    #    concept_dim=relation_dim, concept_in_dim=concept_dim, freeze_ent_emb=args.freeze_ent_emb,
+                    #    pretrained_concept_emb=cp_emb, hidden_dim=args.decoder_hidden_dim, dropout=args.dropoutm, encoder_config=lstm_config)
+        # else:
+        model = LMGconAttn(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num,
                        concept_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim), concept_in_dim=concept_dim, freeze_ent_emb=args.freeze_ent_emb,
-                       pretrained_concept_emb=cp_emb, hidden_dim=args.decoder_hidden_dim, dropout=args.dropoutm, encoder_config=lstm_config, lm_sent_pool=args.lm_sent_pool)
+                       pretrained_concept_emb=cp_emb, hidden_dim=args.decoder_hidden_dim, dropout=args.dropoutm, ablation=args.ablation, encoder_config=lstm_config, lm_sent_pool=args.lm_sent_pool)
     else:
         model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
                           relation_num=relation_num, relation_dim=relation_dim,

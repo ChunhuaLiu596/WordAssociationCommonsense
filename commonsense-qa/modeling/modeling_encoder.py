@@ -49,6 +49,7 @@ class LSTMTextEncoder(nn.Module):
         self.rnns = nn.ModuleList([nn.LSTM(emb_size if l == 0 else hidden_size,
                                            (hidden_size if l != num_layers else output_size) // (2 if bidirectional else 1),
                                            1, bidirectional=bidirectional, batch_first=True) for l in range(num_layers)])
+        self.rnns = nn.GRU(input_size=emb_size,hidden_size=hidden_size, num_layers=num_layers, bidirectional=bidirectional, batch_first=True, dropout=hidden_p)
         self.pooler = self.pool_layer_classes[pool_function]()
 
         self.input_dropout = nn.Dropout(input_p)

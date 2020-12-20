@@ -85,6 +85,46 @@ merged_relations_1rel= [
    'relatedto',
 ]
 
+relation_groups_31rel = [
+    'atlocation',
+    'locatednear',
+    'capableof',
+    'causes/causesdesire/*motivatedbygoal',
+    'createdby',
+    'desires',
+    'antonym/distinctfrom',
+    'hascontext',
+    'hasproperty',
+    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
+    'isa/instanceof/definedas',
+    'madeof',
+    'notcapableof',
+    'notdesires',
+    'partof/*hasa',
+    'relatedto/similarto/synonym',
+    'usedfor',
+    'receivesaction',
+]
+
+merged_relations_31rel = [
+    'antonym',
+    'atlocation',
+    'capableof',
+    'causes',
+    'createdby',
+    'isa',
+    'desires',
+    'hassubevent',
+    'partof',
+    'hascontext',
+    'hasproperty',
+    'madeof',
+    'notcapableof',
+    'notdesires',
+    'receivesaction',
+    'relatedto',
+    'usedfor',
+]
 relation_text = [
     'is the antonym of',
     'is at location of',

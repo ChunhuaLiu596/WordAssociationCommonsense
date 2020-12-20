@@ -10,9 +10,10 @@
 
 
 output_file="./log/auto_extract_results.md"
-input_files=(22585606 22606219 22606616 22606655 22606658 22613565 22613564 22613561 )
+# input_files=(22585606 22606219 22606616 22606655 22606658 22613565 22613564 22613561 )
+input_files=(22700249 22700454)
 # for input_file in input_files;do
 for input_file in "${input_files[@]}";do
     echo $input_file
-    python -u utils/extract_results.py --input_file $input_file --output_file $output_file
+    python -u utils/extract_res.py --input_file $input_file --output_file $output_file
 done 
