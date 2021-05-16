@@ -1,26 +1,24 @@
 import networkx as nx
 import nltk
-from nltk.corpus import stopwords
 import json
 import math
 from tqdm import tqdm
 import numpy as np
 import sys
+from collections import Counter, defaultdict
+import pandas as pd
 
 try:
-    from .utils import check_file, check_path
+    from .utils import check_file
 except ImportError:
-    from utils import check_file, check_path
+    from utils import check_file
 
-__all__ = ['extract_english', 'construct_graph', 'merged_relations', 'merged_relations_7rel', 'merged_relations_1rel', 'load_merge_relation']
-global relation_groups, relation_groups_7rel, relation_groups_1rel
+__all__ = ['extract_english', 'construct_graph', 'merged_relations']
 
-    # 'causes/causesdesire/*motivatedbygoal',
-    # 'partof/*hasa',
 relation_groups = [
     'atlocation/locatednear',
     'capableof',
-    'causes/causesdesire/motivatedbygoal',
+    'causes/causesdesire/*motivatedbygoal',
     'createdby',
     'desires',
     'antonym/distinctfrom',
@@ -31,7 +29,7 @@ relation_groups = [
     'madeof',
     'notcapableof',
     'notdesires',
-    'partof/hasa',
+    'partof/*hasa',
     'relatedto/similarto/synonym',
     'usedfor',
     'receivesaction',
@@ -57,76 +55,6 @@ merged_relations = [
     'usedfor',
 ]
 
-discard_relations=('derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof', 'symbolof', 'influencedby')
-
-relation_groups_7rel=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/*hasa/createdby/relatedto/synonym',
-    'atlocation/locatednear/hascontext/similarto',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'causes/causesdesire/*motivatedbygoal/desires',
-    'usedfor/receivesaction',
-    'capableof',
-    'antonym/distinctfrom/notcapableof/notdesires',
-]
-
-merged_relations_7rel= [
-    'isa',
-    'atlocation',
-    'hassubevent',
-    'causes',
-    'usedfor',
-    'capableof',
-    'antonym',
-]
-
-relation_groups_1rel=[
-    'relatedto/isa/hasproperty/madeof/partof/definedas/instanceof/*hasa/createdby/synonym/atlocation/locatednear/hascontext/similarto/hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof/causes/causesdesire/*motivatedbygoal/desires/usedfor/receivesaction/capableof/antonym/distinctfrom/notcapableof/notdesires',
-]
-
-merged_relations_1rel= [
-   'relatedto',
-]
-
-relation_groups_31rel = [
-    'atlocation',
-    'locatednear',
-    'capableof',
-    'causes/causesdesire/*motivatedbygoal',
-    'createdby',
-    'desires',
-    'antonym/distinctfrom',
-    'hascontext',
-    'hasproperty',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'isa/instanceof/definedas',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'partof/*hasa',
-    'relatedto/similarto/synonym',
-    'usedfor',
-    'receivesaction',
-]
-
-merged_relations_31rel = [
-    'antonym',
-    'atlocation',
-    'capableof',
-    'causes',
-    'createdby',
-    'isa',
-    'desires',
-    'hassubevent',
-    'partof',
-    'hascontext',
-    'hasproperty',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'receivesaction',
-    'relatedto',
-    'usedfor',
-]
 relation_text = [
     'is the antonym of',
     'is at location of',
@@ -147,17 +75,11 @@ relation_text = [
     'is used for',
 ]
 
-def load_merge_relation(kg_name):
-    global relation_groups, relation_groups_7rel, relation_groups_1rel
+PAD_TOKEN="_PAD"
+
+def load_merge_relation():
     relation_mapping = dict()
-
-    if kg_name=='cpnet7rel':
-        relation_groups=relation_groups_7rel
-
-    if kg_name=='cpnet1rel':
-        relation_groups=relation_groups_1rel
-
-    for i, line in enumerate(relation_groups):
+    for line in relation_groups:
         ls = line.strip().split('/')
         rel = ls[0]
         for l in ls:
@@ -179,20 +101,23 @@ def del_pos(s):
     return s
 
 
-def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name):
+def extract_english(kg_name, conceptnet_path, output_csv_path, output_vocab_path, output_relation_path, weight=0.0, debug=False):
     """
     Reads original conceptnet csv file and extracts all English relations (head and tail are both English entities) into
     a new file, with the following format for each line: <relation> <head> <tail> <weight>.
     :return:
     """
     print('extracting English concepts and relations from ConceptNet...')
-    # check_rels(kg_name)
-    relation_mapping = load_merge_relation(kg_name)
+    relation_mapping = load_merge_relation()
     num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
     cpnet_vocab = []
+    cpnet_vocab.append(PAD_TOKEN)
     concepts_seen = set()
-    out_line_count = 0
-    check_path(output_csv_path)
+    count=0
+    source_rel_num = Counter()
+    source_rel_num_dict= defaultdict(dict)
+    relation = defaultdict(dict)
+
     with open(conceptnet_path, 'r', encoding="utf8") as fin, \
             open(output_csv_path, 'w', encoding="utf8") as fout:
         for line in tqdm(fin, total=num_lines):
@@ -201,50 +126,81 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name
                 """
                 Some preprocessing:
                     - Remove part-of-speech encoding.
-                    - Split("/")[-1] to trim the "/c/en/" and just get the entity name, convert all to 
+                    - Split("/")[-1] to trim the "/c/en/" and just get the entity name, convert all to
                     - Lowercase for uniformity.
                 """
                 rel = toks[1].split("/")[-1].lower()
                 head = del_pos(toks[2]).split("/")[-1].lower()
                 tail = del_pos(toks[3]).split("/")[-1].lower()
-                # if not head.replace("_", "").replace("-", "").isalpha():
-                    # continue
-                # if not tail.replace("_", "").replace("-", "").isalpha():
-                    # continue
 
-                if rel not in relation_mapping:
+                if not head.replace("_", "").replace("-", "").isalpha():
                     continue
-                if head == tail:
-                    continue 
+                if not tail.replace("_", "").replace("-", "").isalpha():
+                    continue
+                # if rel not in relation_mapping:
+                    # continue
 
-                rel = relation_mapping[rel]
-                if rel.startswith("*"):
-                    head, tail, rel = tail, head, rel[1:]
+                # rel = relation_mapping[rel]
+                # if rel.startswith("*"):
+                    # head, tail, rel = tail, head, rel[1:]
+                relation[rel] = relation.get(rel, 0) +1
 
                 data = json.loads(toks[4])
+                cur_weight = data["weight"]
 
-                fout.write('\t'.join([rel, head, tail, str(data["weight"])]) + '\n')
-                out_line_count +=1
+                if cur_weight>=weight:
+                    sources_all = data["sources"][0]["contributor"].split("/")[:]
+                    source = data["sources"][0]["contributor"].split("/")[3]
+                    if len(sources_all)>6:
+                        print(len(sources_all), sources_all)
+                    #if source =="omcs":
+                    fout.write('\t'.join([rel, head, tail, str(data["weight"]), source]) + '\n')
+                    # source_rel_num[source][rel] = source_rel_num[source].get(rel,0) +1
+                    source_rel_num[source] +=1
+                    source_rel_num_dict[source][rel] = source_rel_num_dict[source].get(rel,0) +1
+                    count+=1
 
-                for w in [head, tail]:
-                    if w not in concepts_seen:
-                        concepts_seen.add(w)
-                        cpnet_vocab.append(w)
-
-    check_path(output_vocab_path)
+                    for w in [head, tail]:
+                        if w not in concepts_seen:
+                            concepts_seen.add(w)
+                            cpnet_vocab.append(w)
+                if debug=='True' and count>1000:
+                    break
     with open(output_vocab_path, 'w') as fout:
         for word in cpnet_vocab:
             fout.write(word + '\n')
 
-    print('extracted {} triples to {}'.format(out_line_count, output_csv_path))
-    print('extracted {} concepts vocabulary  to {}'.format(len(cpnet_vocab), output_vocab_path))
+    with open(output_relation_path, 'w') as fout:
+        for word in relation:
+            fout.write("{}+\n".format(word) )
+
+    print(f'extracted ConceptNet csv file with {count} triples, saved to {output_csv_path}')
+    print(f'extracted {len(cpnet_vocab)} concept vocabulary saved to {output_vocab_path}')
+    print(f'extracted {len(relation)} relation vocabulary saved to {output_relation_path}')
     print()
 
+    print(source_rel_num)
+    df_data = {"source":[], "relation":[], "number":[]}
+    for k,v in source_rel_num_dict.items():
+        for k1,v1 in source_rel_num_dict[k].items():
+            # print(k1, v1)
+            df_data["source"].append(k)
+            df_data["relation"].append(k1)
+            df_data["number"].append(v1)
+    df = pd.DataFrame(df_data, columns=["source", "relation", "number"])
+    df.sort_values("number")
+    print(df.groupby(['source']).sum())
+    print()
+    print(df.groupby(['relation']).sum())
+    df.to_csv("data/analysis/cpnet_47rel_source/source_distribution.csv")
+    # source_num = [k, sum(source_rel_num[k][v] for k,v in source_rel_num.items()]
+    # print(source_num)
 
-def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, kg_name='cpnet'):
-    print('generating {} graph file...'.format(kg_name))
 
-    # nltk.download('stopwords', quiet=True)
+def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True):
+    print('generating ConceptNet graph file...')
+
+    nltk.download('stopwords', quiet=True)
     nltk_stopwords = nltk.corpus.stopwords.words('english')
     nltk_stopwords += ["like", "gone", "did", "going", "would", "could",
                        "get", "in", "up", "may", "wanter"]  # issue: mismatch with the stop words in grouding.py
@@ -257,13 +213,7 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, k
         id2concept = [w.strip() for w in fin]
     concept2id = {w: i for i, w in enumerate(id2concept)}
 
-    if kg_name=='cpnet':
-        id2relation = merged_relations
-    elif kg_name=='cpnet7rel':
-        id2relation = merged_relations_7rel
-    elif kg_name=='cpnet1rel':
-        id2relation = merged_relations_1rel
-
+    id2relation = merged_relations
     relation2id = {r: i for i, r in enumerate(id2relation)}
 
     graph = nx.MultiDiGraph()
@@ -480,28 +430,12 @@ def glove_init(input, output, concept_file):
     create_embeddings_glove(dim=dim)
 
 
-def check_rels(kg_name):
-    rel_mapping = load_merge_relation('cpnet')
-    rel_group1 = set(rel_mapping.keys())
-    print(len(rel_group1), rel_group1)
-
-    if kg_name == 'cpnet7rel':
-        rel_mapping_7rel = load_merge_relation('cpnet7rel')
-        rel_group2 = set(rel_mapping_7rel.keys()) 
-
-    if kg_name == 'cpnet1rel':
-        rel_mapping_1rel = load_merge_relation('cpnet1rel')
-        rel_group2 = set(rel_mapping_1rel.keys()) 
-
-    # print(rel_group1 -  rel_group2)
-    # print(rel_group2- rel_group1)
-    # print(len(rel_group2), rel_group2)
-
-    assert rel_group1 == rel_group2
-    print("check relation groups finishes. {} relations before merging".format(len(rel_group1)))
-
 if __name__ == "__main__":
-    # glove_init("../data/glove/glove.6B.200d.txt", "../data/glove/glove.200d", '../data/glove/tp_str_corpus.json')
-    # check_rels()
-
-    extract_english()
+    #glove_init("../data/glove/glove.6B.200d.txt", "../data/glove/glove.200d", '../data/glove/tp_str_corpus.json')
+    # glove_init("../data/glove/glove.6B.100d.txt", "../data/glove/glove.100d", '../data/glove/tp_str_corpus.json')
+    debug = sys.argv[1]
+    extract_english("ConceptNet.source",
+            conceptnet_path='data/cpnet/conceptnet-assertions-5.6.0.csv',
+            output_csv_path='data/analysis/cpnet_47rel_source/cpnet_source.en.csv',
+            output_vocab_path = 'data/analysis/cpnet_47rel_source/concept.txt',
+            output_relation_path = 'data/analysis/cpnet_47rel_source/relation.txt', debug=debug)

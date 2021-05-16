@@ -12,84 +12,13 @@ try:
 except ImportError:
     from utils import check_file, check_path
 
-__all__ = ['extract_english', 'construct_graph', 'merged_relations', 'merged_relations_7rel', 'merged_relations_1rel', 'load_merge_relation']
+__all__ = ['extract_english', 'construct_graph', 'merged_relations', 'load_merge_relation']
 global relation_groups, relation_groups_7rel, relation_groups_1rel
 
-    # 'causes/causesdesire/*motivatedbygoal',
-    # 'partof/*hasa',
 relation_groups = [
+    'forwardassociated',
+    'bidirectionalassociated',
     'atlocation/locatednear',
-    'capableof',
-    'causes/causesdesire/motivatedbygoal',
-    'createdby',
-    'desires',
-    'antonym/distinctfrom',
-    'hascontext',
-    'hasproperty',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'isa/instanceof/definedas',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'partof/hasa',
-    'relatedto/similarto/synonym',
-    'usedfor',
-    'receivesaction',
-]
-
-merged_relations = [
-    'antonym',
-    'atlocation',
-    'capableof',
-    'causes',
-    'createdby',
-    'isa',
-    'desires',
-    'hassubevent',
-    'partof',
-    'hascontext',
-    'hasproperty',
-    'madeof',
-    'notcapableof',
-    'notdesires',
-    'receivesaction',
-    'relatedto',
-    'usedfor',
-]
-
-discard_relations=('derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof', 'symbolof', 'influencedby')
-
-relation_groups_7rel=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/*hasa/createdby/relatedto/synonym',
-    'atlocation/locatednear/hascontext/similarto',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'causes/causesdesire/*motivatedbygoal/desires',
-    'usedfor/receivesaction',
-    'capableof',
-    'antonym/distinctfrom/notcapableof/notdesires',
-]
-
-merged_relations_7rel= [
-    'isa',
-    'atlocation',
-    'hassubevent',
-    'causes',
-    'usedfor',
-    'capableof',
-    'antonym',
-]
-
-relation_groups_1rel=[
-    'relatedto/isa/hasproperty/madeof/partof/definedas/instanceof/*hasa/createdby/synonym/atlocation/locatednear/hascontext/similarto/hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof/causes/causesdesire/*motivatedbygoal/desires/usedfor/receivesaction/capableof/antonym/distinctfrom/notcapableof/notdesires',
-]
-
-merged_relations_1rel= [
-   'relatedto',
-]
-
-relation_groups_31rel = [
-    'atlocation',
-    'locatednear',
     'capableof',
     'causes/causesdesire/*motivatedbygoal',
     'createdby',
@@ -108,7 +37,9 @@ relation_groups_31rel = [
     'receivesaction',
 ]
 
-merged_relations_31rel = [
+merged_relations = [
+    'forwardassociated',
+    'bidirectionalassociated',
     'antonym',
     'atlocation',
     'capableof',
@@ -127,35 +58,13 @@ merged_relations_31rel = [
     'relatedto',
     'usedfor',
 ]
-relation_text = [
-    'is the antonym of',
-    'is at location of',
-    'is capable of',
-    'causes',
-    'is created by',
-    'is a kind of',
-    'desires',
-    'has subevent',
-    'is part of',
-    'has context',
-    'has property',
-    'is made of',
-    'is not capable of',
-    'does not desires',
-    'is',
-    'is related to',
-    'is used for',
-]
+
+def extract_english():
+    pass
 
 def load_merge_relation(kg_name):
-    global relation_groups, relation_groups_7rel, relation_groups_1rel
+    global relation_groups, relation_groups_1rel
     relation_mapping = dict()
-
-    if kg_name=='cpnet7rel':
-        relation_groups=relation_groups_7rel
-
-    if kg_name=='cpnet1rel':
-        relation_groups=relation_groups_1rel
 
     for i, line in enumerate(relation_groups):
         ls = line.strip().split('/')
@@ -167,6 +76,71 @@ def load_merge_relation(kg_name):
                 relation_mapping[l] = rel
     return relation_mapping
 
+def merge_vocab(swow_vocab_path, cpnet_vocab_path, output_vocab_path):
+    with open(cpnet_vocab_path, "r", encoding="utf8") as fin, open(swow_vocab_path, "r", encoding="utf8") as fins:
+        concepts_vocab = [w.strip() for w in fin]
+        concepts_seen = set(concepts_vocab )
+
+        concepts_vocab_swow = [w.strip() for w in fins]
+        for w in concepts_vocab_swow:
+            if w not in concepts_seen:
+                concepts_seen.add(w)
+                concepts_vocab.append(w)
+
+    with open(output_vocab_path, "w", encoding="utf8") as fout:
+        for word in concepts_vocab:
+            fout.write(word + '\n')
+
+    print("write {} concepts ".format(len(concepts_vocab)))
+
+def merge_rel_emb(cpnet_rel_path, swow_rel_path, output_rel_path):
+    swow_rel_emb = np.load(swow_rel_path)
+    cpnet_rel_emb = np.load(cpnet_rel_path)
+
+    merge_rel_emb = np.concatenate((swow_rel_emb, cpnet_rel_emb), 0)
+
+    np.save(output_rel_path, merge_rel_emb)
+    print("Save {}, containing {} relation embeddings".format(output_rel_path, merge_rel_emb.shape))
+
+# def merge_ent_emb(cpnet_vocab_path, cpnet_ent_path, swow_vocab_path, swow_ent_path, output_ent_path):
+
+#     with open(cpnet_ent_path, "r", encoding="utf8") as fin:
+#         cpnet_ent_emb = np.load(cpnet_ent_path)
+#         swow_ent_emb = np.load(swow_ent_path)
+    
+#         id2concept_cpnet = [w.strip() for w in fin]
+
+#     concept2id = {}
+#     id2concept = {}
+#     with open(cpnet_vocab_path, "r", encoding="utf8") as fin:
+#         id2concept = [w.strip() for w in fin]
+#     concept2id = {w: i for i, w in enumerate(id2concept)}
+
+
+
+def merge_csv( cpnet_csv_path,swow_csv_path, output_csv_path):
+    count_new=0
+    graph = nx.MultiDiGraph()
+
+    fo =  open(output_csv_path, "w")
+    for line in tqdm(open(cpnet_csv_path, "r").readlines(), desc="Loading CN"):
+        rel, subj, obj, weight = line.strip().split("\t")
+        graph.add_edge(subj, obj, rel=rel, weight=weight)
+        graph.add_edge(obj, subj, rel="_"+rel, weight=weight)
+        fo.write(line)
+
+    with open (swow_csv_path, "r") as fs:
+        for line in tqdm(fs.readlines(), desc="Merging"):
+            rel, subj, obj, weight = line.strip().split("\t")
+            if graph.has_node(subj) and graph.has_node(obj):
+                if graph.has_edge(subj, obj) is False: 
+                    count_new += 1
+                    fo.write(line)
+            else:
+                count_new += 1
+                fo.write(line)
+
+    print("Write {} new triples from SWOW".format(count_new))
 
 def del_pos(s):
     """
@@ -177,69 +151,6 @@ def del_pos(s):
     if s.endswith("/n") or s.endswith("/a") or s.endswith("/v") or s.endswith("/r"):
         s = s[:-2]
     return s
-
-
-def extract_english(conceptnet_path, output_csv_path, output_vocab_path, kg_name):
-    """
-    Reads original conceptnet csv file and extracts all English relations (head and tail are both English entities) into
-    a new file, with the following format for each line: <relation> <head> <tail> <weight>.
-    :return:
-    """
-    print('extracting English concepts and relations from ConceptNet...')
-    # check_rels(kg_name)
-    relation_mapping = load_merge_relation(kg_name)
-    num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
-    cpnet_vocab = []
-    concepts_seen = set()
-    out_line_count = 0
-    check_path(output_csv_path)
-    with open(conceptnet_path, 'r', encoding="utf8") as fin, \
-            open(output_csv_path, 'w', encoding="utf8") as fout:
-        for line in tqdm(fin, total=num_lines):
-            toks = line.strip().split('\t')
-            if toks[2].startswith('/c/en/') and toks[3].startswith('/c/en/'):
-                """
-                Some preprocessing:
-                    - Remove part-of-speech encoding.
-                    - Split("/")[-1] to trim the "/c/en/" and just get the entity name, convert all to 
-                    - Lowercase for uniformity.
-                """
-                rel = toks[1].split("/")[-1].lower()
-                head = del_pos(toks[2]).split("/")[-1].lower()
-                tail = del_pos(toks[3]).split("/")[-1].lower()
-                # if not head.replace("_", "").replace("-", "").isalpha():
-                    # continue
-                # if not tail.replace("_", "").replace("-", "").isalpha():
-                    # continue
-
-                if rel not in relation_mapping:
-                    continue
-                if head == tail:
-                    continue 
-
-                rel = relation_mapping[rel]
-                if rel.startswith("*"):
-                    head, tail, rel = tail, head, rel[1:]
-
-                data = json.loads(toks[4])
-
-                fout.write('\t'.join([rel, head, tail, str(data["weight"])]) + '\n')
-                out_line_count +=1
-
-                for w in [head, tail]:
-                    if w not in concepts_seen:
-                        concepts_seen.add(w)
-                        cpnet_vocab.append(w)
-
-    check_path(output_vocab_path)
-    with open(output_vocab_path, 'w') as fout:
-        for word in cpnet_vocab:
-            fout.write(word + '\n')
-
-    print('extracted {} triples to {}'.format(out_line_count, output_csv_path))
-    print('extracted {} concepts vocabulary  to {}'.format(len(cpnet_vocab), output_vocab_path))
-    print()
-
 
 def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, kg_name='cpnet'):
     print('generating {} graph file...'.format(kg_name))
@@ -257,13 +168,7 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, k
         id2concept = [w.strip() for w in fin]
     concept2id = {w: i for i, w in enumerate(id2concept)}
 
-    if kg_name=='cpnet':
-        id2relation = merged_relations
-    elif kg_name=='cpnet7rel':
-        id2relation = merged_relations_7rel
-    elif kg_name=='cpnet1rel':
-        id2relation = merged_relations_1rel
-
+    id2relation = merged_relations
     relation2id = {r: i for i, r in enumerate(id2relation)}
 
     graph = nx.MultiDiGraph()
@@ -503,5 +408,8 @@ def check_rels(kg_name):
 if __name__ == "__main__":
     # glove_init("../data/glove/glove.6B.200d.txt", "../data/glove/glove.200d", '../data/glove/tp_str_corpus.json')
     # check_rels()
+    merge_csv("./data/cpnet/conceptnet.en.csv", "./data/swow/conceptnet.en.csv", "./data/cpnet_swow/conceptnet.en.csv")
+    # merge_vocab("./data/cpnet/concept.txt", "./data/swow/concept.txt", "./data/cpnet_swow/concept.txt")
+    # merge_rel_emb("./data/transe/glove.transe.sgd.rel.npy", "./data/swow/glove.TransE.SGD.rel.npy", "./data/cpnet_swow/glove.transe.sgd.rel.npy")
 
-    extract_english()
+    # merge_ent_emb("./data/cpnet/concept_roberta_emb.npy", "./data/swow/concept_roberta_emb.npy", "./data/cpnet_swow/concept_roberta_emb.npy")

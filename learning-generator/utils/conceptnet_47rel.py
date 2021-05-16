@@ -13,23 +13,103 @@ discard_relations=('relatedto','synonym', 'antonym', 'derivedfrom', 'formof', 'e
 
 
 relation_groups=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby/language/capital/field/genre/genus/leader/occupation/product',
-    'atlocation/locatednear/hascontext/similarto/symbolof/knownfor',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'causes/causesdesire/motivatedbygoal/desires/influencedby',
-    'usedfor/receivesaction',
-    'capableof',
-    'distinctfrom/notdesires/nothasproperty/notcapableof',
-]
-
-merged_relations = [
+    'relatedto',
+    'synonym',
+    'antonym',
+    'derivedfrom',
+    'formof',
     'isa',
+    'hasproperty',
+    'madeof',
+    'partof',
+    'definedas',
+    'instanceof',
+    'hasa',
+    'createdby',
+    'language',
+    'capital',
+    'field',
+    'genre',
+    'genus',
+    'leader',
+    'occupation',
+    'product',
     'atlocation',
+    'locatednear',
+    'hascontext',
+    'similarto',
+    'symbolof',
+    'knownfor',
     'hassubevent',
+    'hasfirstsubevent',
+    'haslastsubevent',
+    'hasprerequisite',
+    'entails',
+    'mannerof',
     'causes',
+    'causesdesire',
+    'motivatedbygoal',
+    'desires',
+    'influencedby',
     'usedfor',
+    'receivesaction',
     'capableof',
     'distinctfrom',
+    'notdesires',
+    'nothasproperty',
+    'notcapableof',
+    'etymologicallyderivedfrom',
+    'etymologicallyrelatedto'
+    ]
+
+merged_relations = [
+     'relatedto',
+    'synonym',
+    'antonym',
+    'derivedfrom',
+    'formof',
+    'isa',
+    'hasproperty',
+    'madeof',
+    'partof',
+    'definedas',
+    'instanceof',
+    'hasa',
+    'createdby',
+    'language',
+    'capital',
+    'field',
+    'genre',
+    'genus',
+    'leader',
+    'occupation',
+    'product',
+    'atlocation',
+    'locatednear',
+    'hascontext',
+    'similarto',
+    'symbolof',
+    'knownfor',
+    'hassubevent',
+    'hasfirstsubevent',
+    'haslastsubevent',
+    'hasprerequisite',
+    'entails',
+    'mannerof',
+    'causes',
+    'causesdesire',
+    'motivatedbygoal',
+    'desires',
+    'influencedby',
+    'usedfor',
+    'receivesaction',
+    'capableof',
+    'distinctfrom',
+    'notdesires',
+    'nothasproperty',
+    'notcapableof',
+    'etymologicallyderivedfrom',
+    'etymologicallyrelatedto'
 ]
 
 ###-----------
@@ -253,8 +333,8 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_graph_path, output_
 
 
 def main():
-    print("Generating CN7rel graph ...")
-    data_dir='data/cpnet7rel/'
+    print("Generating CN47rel graph ...")
+    data_dir='data/cpnet47rel/'
     check_path(data_dir)
     # conceptnet_path = os.path.join(data_dir, 'conceptnet-assertions-5.5.0.csv')
     conceptnet_path = '/home/chunhua/Commonsense/MHGRN/data/cpnet/conceptnet-assertions-5.6.0.csv' 
@@ -296,8 +376,8 @@ def check_relation_types():
     print(i2r_old)
     print(r2i_old)
 
-    assert set(relation_mapping.keys()) == set(i2r_old[:40]) 
-    print("relation types before merging are the same as (Wang, 2020)")
+    # assert set(relation_mapping.keys()) == set(i2r_old[:40]) 
+    # print("relation types before merging are the same as (Wang, 2020)")
     print("double check finished!")
     
 

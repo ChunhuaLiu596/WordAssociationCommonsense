@@ -1,5 +1,3 @@
-
-
 CN5.5.0
 graph file saved to data/conceptnet_debug/conceptnet_graph.nx
 num of nodes: 305754

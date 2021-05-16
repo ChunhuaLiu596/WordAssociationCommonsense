@@ -188,7 +188,7 @@ def concepts_to_adj_matrices_2hop_all_pair(data):
             if qid != aid and qid in cpnet_simple.nodes and aid in cpnet_simple.nodes:
                 extra_nodes |= set(cpnet_simple[qid]) & set(cpnet_simple[aid])
     extra_nodes = extra_nodes - qa_nodes
-    schema_graph = sorted(qc_ids) + sorted(ac_ids) + sorted(extra_nodes)
+    schema_graph = sorted(qc_ids) + sorted(ac_ids) + sorted(extra_nodes) # posy: all concepts centered by qc and ac
     arange = np.arange(len(schema_graph))
     qmask = arange < len(qc_ids)
     amask = (arange >= len(qc_ids)) & (arange < (len(qc_ids) + len(ac_ids)))

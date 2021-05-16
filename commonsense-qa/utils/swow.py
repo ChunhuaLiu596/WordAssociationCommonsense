@@ -86,6 +86,7 @@ class SWOW(object):
         self.swow_cue_responses, self.concepts = self.forward_associations(self.swow_data, word_pair_freq, unify_nodes=True)
         self.swow_cue_responses_relation = self.add_relations(self.swow_cue_responses)
         if output_csv_path is not None:
+            self.write_cues(self.swow_cue_responses.keys(), output_path="./data/swow/swow_cues.csv")
             self.write_forward_associations_relation(self.swow_cue_responses_relation, output_csv_path, output_vocab_path)
 
     def load_swow_en(self, input_file):
@@ -227,6 +228,12 @@ class SWOW(object):
         print("Add {} forward association triples".format(count_fw))
         print("Add {} bi-directional association triples".format(count_bi))
         return cue_responses_relation
+
+    def write_cues(self, cues, output_path):
+        with open(output_path, 'w') as fout:
+            for cue in cues:
+              fout.write(cue+'\n')
+        print("write {} {} cues".format(output_path, len(cues)))
 
     def write_forward_associations_relation(self, cue_responses_relation,
                     output_csv_path, output_vocab_path):
