@@ -1,9 +1,11 @@
 import os,sys
 import random
+import json
 from multiprocessing import cpu_count
 
 from transformers import *
 
+from modeling.modeling_lm import LMForMultipleChoice, LMDataLoader
 from modeling.modeling_rn_pg import *
 from modeling.modeling_gconattn import *
 from utils.optimization_utils import OPTIMIZER_CLASSES
@@ -25,6 +27,8 @@ def get_merged_relations(kg_name):
         from utils.swow import merged_relations
     elif kg_name in ('swow1rel'):
         from utils.swow import merged_relations_1rel as merged_relations
+    elif kg_name in ('cpnet_swow'):
+        from utils.conceptnet_swow import merged_relations
     return merged_relations
 
 
@@ -94,6 +98,7 @@ def main():
                                                              'mrloss', 'fixrel', 'fakerel', 'no_factor_mul', 'no_2hop_qa',
                                                              'randomrel', 'encode_qas', 'multihead_pool', 'att_pool', 'kg_only'], nargs='?', const=None, help='run ablation test')
     parser.add_argument('--kg_model', default='pg_full', choices=['None', 'pg_full', 'pg_global', 'rn', 'gconattn'], nargs='?', const=None, help='choose kg infusion model')                                                            
+    parser.add_argument('--encoder_type', default='PLM', help='pre-trained language model')
     parser.add_argument('--relation_types', default=17, choices=[17, 7, 2], help='relation types in of the knowledge graph') 
 
     parser.add_argument('--att_head_num', default=2, type=int, help='number of attention heads')
@@ -131,12 +136,12 @@ def main():
 
     merged_relations = get_merged_relations(args.kg_name)
     args.relation_types = len(merged_relations)
-
-    find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache, merged_relations )
-    find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.dev_concepts, args.dev_rel_paths, args.nprocs, args.use_cache, merged_relations )
-    if args.test_statements is not None:
-        find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.test_concepts, args.test_rel_paths, args.nprocs, args.use_cache, merged_relations )
-
+    if args.kg_model is not None:
+        find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache, merged_relations )
+        find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.dev_concepts, args.dev_rel_paths, args.nprocs, args.use_cache, merged_relations )
+        if args.test_statements is not None:
+            find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.test_concepts, args.test_rel_paths, args.nprocs, args.use_cache, merged_relations )
+    
     if args.mode == 'train':
         train(args)
     elif args.mode == 'eval':
@@ -290,15 +295,16 @@ def train(args):
     best_dev_acc, final_test_acc, total_loss = 0.0, 0.0, 0.0
     start_time = time.time()
     model.train()
-    freeze_net(model.encoder)
+    if args.encoder_type=="PLM":
+        freeze_net(model.encoder)
     # try:
     rel_grad = []
     linear_grad = []
     for epoch_id in tqdm(range(args.n_epochs), desc="Train Epoch"):
-        if epoch_id == args.unfreeze_epoch:
+        if args.encoder_type=="PLM" and epoch_id == args.unfreeze_epoch:
             print('encoder unfreezed')
             unfreeze_net(model.encoder)
-        if epoch_id == args.refreeze_epoch:
+        if args.encoder_type=="PLM" and epoch_id == args.refreeze_epoch:
             print('encoder refreezed')
             freeze_net(model.encoder)
         model.train()
@@ -376,8 +382,8 @@ def eval(args):
 
 def pred(args):
 
-    dev_pred_path = os.path.join(args.save_dir, 'predictions_dev.csv')
-    test_pred_path = os.path.join(args.save_dir, 'predictions_test.csv')
+    dev_pred_path = os.path.join(args.save_dir, 'predictions_dev.json')
+    test_pred_path = os.path.join(args.save_dir, 'predictions_test.json')
     model_path = os.path.join(args.save_dir, 'model.pt')
     device = torch.device('cuda:{}'.format(args.gpu_device) if torch.cuda.is_available() and args.cuda else "cpu")
     model, old_args = torch.load(model_path, map_location=device)
@@ -391,7 +397,18 @@ def pred(args):
         use_contextualized = False
 
     # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
-    if args.kg_model=='gconattn':
+    if args.kg_model=='None':
+        dataset = LMDataLoader(train_statement_path=args.train_statements, 
+                               train_concept_jsonl=args.train_concepts, 
+                               dev_statement_path=args.dev_statements,
+                                batch_size=args.batch_size, 
+                                eval_batch_size=args.eval_batch_size,
+                                device=device, model_name=args.encoder, 
+                                max_seq_length=args.max_seq_len, 
+                                is_inhouse=args.inhouse, 
+                                inhouse_train_qids_path=args.inhouse_train_qids,
+                                subsample=args.subsample)
+    elif args.kg_model=='gconattn':
         dataset = GconAttnDataLoader(train_statement_path=args.train_statements, train_concept_jsonl=args.train_concepts,
                                  dev_statement_path=args.dev_statements, dev_concept_jsonl=args.dev_concepts,
                                  test_statement_path=args.test_statements, test_concept_jsonl=args.test_concepts,
@@ -400,7 +417,7 @@ def pred(args):
                                  max_seq_length=args.max_seq_len, is_inhouse=args.inhouse, inhouse_train_qids_path=args.inhouse_train_qids,
                                  subsample=args.subsample, format=args.format, pretrained_concept_emb=cp_emb, text_only=args.text_only, concept2deg_path=None)
     else:
-        dataset = LMRelationNetDataLoaderForPred(args.path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
+        dataset = LMRelationNetDataLoader(args.path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
                                       old_args.dev_statements, old_args.dev_rel_paths,
                                       old_args.test_statements, old_args.test_rel_paths,
                                       batch_size=args.batch_size, eval_batch_size=args.eval_batch_size, device=device,
@@ -414,13 +431,25 @@ def pred(args):
     print("***** generating model predictions *****")
     print(f'| dataset: {old_args.dataset} | save_dir: {args.save_dir} |')
 
-    for output_path, data_loader in ([(test_pred_path, dataset.test())] if dataset.test_size() > 0 else []):
+    # for output_path, data_loader in ([(test_pred_path, dataset.test())] if dataset.test_size() > 0 else []):
+    for data_loader, output_path in zip([dataset.dev(), dataset.test()], [dev_pred_path, test_pred_path] if dataset.test_size() > 0 else []):
         with torch.no_grad(), open(output_path, 'w') as fout:
             for qids, labels, *input_data in tqdm(data_loader):
                 logits, _ = model(*input_data)
-                for qid, pred_label in zip(qids, logits.argmax(1)):
+                for qid, label, logit in zip( qids, labels, logits):
+                # for qid, pred_label in zip(qids, logits.argmax(1)):
+                    pred_label = logit.argmax()
                     # fout.write('{},{}\n'.format(qid, chr(ord('A') + pred_label.item())))
-                    fout.write('{}\n'.format(pred_label))
+                    # fout.write('{}\n'.format(pred_label))
+                    out = {
+                        "qid": qid,
+                        "label": label.cpu().numpy().tolist(),
+                        "pred_label": pred_label.cpu().numpy().tolist(),
+                        "logits": [x.cpu().numpy().tolist() for x in logit ]
+                    }
+                    fout.write(json.dumps(out))
+                    fout.write("\n")
+                    # fout.write('{}{}\n'.format(pred_label))
         print(f'predictions saved to {output_path}')
     print('***** prediction done *****')
 
