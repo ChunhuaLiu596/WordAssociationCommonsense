@@ -5,15 +5,17 @@
 #SBATCH --mem=32G
 #SBATCH --partition=deeplearn
 #SBATCH -A punim0478
+#SBATCH --gres=gpu:v100:1
 #SBATCH -q gpgpudeeplearn
-#SBATCH --gres=gpu:v100sxm2:1
-#SBATCH --constraint=dlg3
-###SBATCH --gres=gpu:v100:1
 
 source $1 
 kg_name_out=$2
 kg_model_out=$3
 dynamic_kg=$4
+mode=$5
+seeds_out=($6)
+i_out=$7
+# seeds_out=($6 $7 $8)
 RANDOM=$$
 
 if [[ ${kg_name_out} =~ ^("swow"|"swow1rel")$ ]]; then
@@ -22,30 +24,21 @@ if [[ ${kg_name_out} =~ ^("swow"|"swow1rel")$ ]]; then
 	ent_emb_paths=$ent_emb_paths_swow
 	rel_emb_path=$rel_emb_path_swow
 	path_embedding_path=$path_embedding_path_swow
-	# seeds=$seeds_swow
+	seeds=$seeds_swow
 elif [[ ${kg_name_out} == "cpnet_swow" ]]; then
 	kg_name=$kg_name_cpsw
 	ent_emb_paths=$ent_emb_paths_cpsw
 	rel_emb_path=$rel_emb_path_cpsw
 	path_embedding_path=$path_embedding_path_cpsw
-	# seeds=(11010 19286 21527 24524)
-	echo $kg_name, $path_embedding_path
-elif [[ ${kg_name_out} == "cpnet7rel" ]]; then
-	kg_name=$kg_name_cpnet7rel
-	ent_emb_paths=$ent_emb_paths_cpnet7rel
-	rel_emb_path=$rel_emb_path_cpnet7rel
-	# path_embedding_path=$path_embedding_path_cpnet7rel
-	# seeds=(11010 19286 21527 24524)
-	echo $kg_name, $path_embedding_path
-elif [[ ${kg_name_out} == "cpnet1rel" ]]; then
-	kg_name=$kg_name_cpnet1rel
-	ent_emb_paths=$ent_emb_paths_cpnet1rel
-	rel_emb_path=$rel_emb_path_cpnet1rel
-	# path_embedding_path=$path_embedding_path_cpnet1rel
-	# seeds=(11010 19286 21527 24524)
+	seeds=(0 11010 19286 21527 24524)
 	echo $kg_name, $path_embedding_path
 fi
 
+
+if [[ ${mode} =~ ^("pred"|"decode")$ ]]; then
+	seeds=$seeds_out
+	n_runs=${#seeds_out[@]}
+fi
 
 for ((i=0; i<${n_runs}; i++));do
 
@@ -77,14 +70,20 @@ for ((i=0; i<${n_runs}; i++));do
 		path_embedding_path=$path_embedding_path_cpsw
 	fi
 
+	if [[ ${mode} == "pred" ]]; then
+		save_dir="./saved_models/${dataset}/${encoder}_elr${encoder_lr}_dlr${decoder_lr}_d${dropoutm}_b${batch_size}_s${seed}_g${gpu_device}_${kg_model}_a${ablation}_${kg_name}_ent${ent_emb}_p${subsample}_${i_out}"
+	fi
 
-	echo "making dir"
-	save_dir="./saved_models/${dataset}/${encoder}_elr${encoder_lr}_dlr${decoder_lr}_d${dropoutm}_b${batch_size}_s${seed}_g${gpu_device}_${kg_model}_a${ablation}_${kg_name}_ent${ent_emb}_p${subsample}_$i"
-	mkdir -p ${save_dir}
+	if [[ ${mode} != "pred" ]]; then
+		echo "making dir"
+		save_dir="./saved_models/${dataset}/${encoder}_elr${encoder_lr}_dlr${decoder_lr}_d${dropoutm}_b${batch_size}_s${seed}_g${gpu_device}_${kg_model}_a${ablation}_${kg_name}_ent${ent_emb}_p${subsample}_$i"
+		mkdir -p ${save_dir}
+	fi 
 
 	echo ${save_dir}/train.log 	
- 
+# 
 	python -u main.py \
+		--mode $mode\
 		--dataset $dataset \
 		--inhouse $inhouse \
 		--save_dir $save_dir \
