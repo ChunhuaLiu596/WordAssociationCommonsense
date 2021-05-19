@@ -50,4 +50,5 @@ def save_path_embedding(datahelper, generator, save_file, args):
 
     with open(save_file, 'wb') as handle:
         pickle.dump(path_embeddings_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print("save {}".format(save_file ))
 

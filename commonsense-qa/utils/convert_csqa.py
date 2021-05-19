@@ -68,14 +68,11 @@ def convert_qajson_to_entailment(qa_json: dict, ans_pos: bool):
         else:
             statement, pos = create_hypothesis(get_fitb_from_question(question_text), choice_text, ans_pos)
         create_output_dict(qa_json, statement,  choice["label"] == qa_json.get("answerKey", "A"), ans_pos, pos)
-
     return qa_json
 
 
-# Get a Fill-In-The-Blank (FITB) statement from the question text. E.g. "George wants to warm his
-# hands quickly by rubbing them. Which skin surface will produce the most heat?" ->
-# "George wants to warm his hands quickly by rubbing them. ___ skin surface will produce the most
-# heat?
+# Get a Fill-In-The-Blank (FITB) statement from the question text. E.g. "George wants to warm his hands quickly by rubbing them. Which skin surface will produce the most heat?" ->
+# "George wants to warm his hands quickly by rubbing them. ___ skin surface will produce the most heat?
 def get_fitb_from_question(question_text: str) -> str:
     fitb = replace_wh_word_with_blank(question_text)
     if not re.match(".*_+.*", fitb):

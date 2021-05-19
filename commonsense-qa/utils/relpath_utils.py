@@ -14,13 +14,13 @@ cpnet_simple = None
 
 
 def get_rel_paths(path):
-    if len(path) == 2:
+    if len(path) == 2: #posy: 1hop 
         rel_list = cpnet[path[0]][path[1]]
         seen = set()
         res = [r['rel'] for r in rel_list.values() if r['rel'] not in seen and (seen.add(r['rel']) or True)]
         res = [(r,) for r in res]
         return res
-    elif len(path) == 3:
+    elif len(path) == 3: #2hops
         rel_list1 = cpnet[path[0]][path[1]]
         seen1 = set()
         res1 = [r['rel'] for r in rel_list1.values() if r['rel'] not in seen1 and (seen1.add(r['rel']) or True)]
@@ -47,8 +47,8 @@ def find_paths_qa_concept_pair(source: str, target: str, ifprint=False):
         return []
 
     all_path = []
-    for p in nx.all_simple_paths(cpnet_simple, source=s, target=t, cutoff=2):
-        if len(p) >= 2:  # skip paths of length 1
+    for p in nx.all_simple_paths(cpnet_simple, source=s, target=t, cutoff=2): #posy: cutoff=2 means 2hops
+        if len(p) >= 2:  # skip paths of length 1 #posy: what does len(p)=1 mean? would it return len(p)=1?
             all_path.append(p)
 
     res = []

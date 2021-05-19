@@ -7,7 +7,7 @@ import json
 import random
 import os
 import pickle
-from .conceptnet import merged_relations
+# from .conceptnet import merged_relations
 from .utils import check_path
 
 __all__ = ['find_paths', 'score_paths', 'prune_paths']
@@ -26,12 +26,16 @@ relation_embs = None
 
 def load_resources(cpnet_vocab_path):
     global concept2id, id2concept, relation2id, id2relation
-
     with open(cpnet_vocab_path, "r", encoding="utf8") as fin:
         id2concept = [w.strip() for w in fin]
     concept2id = {w: i for i, w in enumerate(id2concept)}
 
-    id2relation = merged_relations
+    if "cpnet" in cpnet_vocab_path:
+        from .conceptnet import merged_relations
+        id2relation = merged_relations
+    elif "swow" in cpnet_vocab_path:
+        from .swow import merged_relations
+        id2relation = merged_relations
     relation2id = {r: i for i, r in enumerate(id2relation)}
 
 
@@ -58,7 +62,7 @@ def get_edge(src_concept, tgt_concept):
     return res
 
 
-def find_paths_qa_concept_pair(source: str, target: str, ifprint=False):
+def find_paths_qa_concept_pair(source: str, target: str, ifprint=True):
     """
     find paths for a (question concept, answer concept) pair
     source and target is text
@@ -88,10 +92,17 @@ def find_paths_qa_concept_pair(source: str, target: str, ifprint=False):
 
     all_path = []
     try:
+        #revision: posy
+        # for p in nx.shortest_simple_paths(cpnet_simple, source=s, target=t):
+            # if len(p) > 5 or len(all_path) >= 100:  # top 100 paths
+                # break
+            # if len(p) >= 2:  # skip paths of length 1
+                # all_path.append(p)
         for p in nx.shortest_simple_paths(cpnet_simple, source=s, target=t):
-            if len(p) > 5 or len(all_path) >= 100:  # top 100 paths
+            # print(p)
+            if len(p) > 2 or len(all_path) >= 100:  # top 100 paths
                 break
-            if len(p) >= 2:  # skip paths of length 1
+            if len(p) <= 2:  # skip paths of length 1
                 all_path.append(p)
     except nx.exception.NetworkXNoPath:
         pass
@@ -176,6 +187,11 @@ def find_paths_qa_pair(qa_pair):
         for qc in qcs:
             pf_res = find_paths_qa_concept_pair(qc, ac)
             pfr_qa.append({"ac": ac, "qc": qc, "pf_res": pf_res})
+    ###posy
+    # for qc1 in qcs:
+    #     for qc2 in qcs:
+    #         pf_res = find_paths_qa_concept_pair(qc1, qc2)
+    #         pfr_qa.append({"qc1": qc1, "qc2": qc2, "pf_res": pf_res})
     return pfr_qa
 
 
@@ -330,17 +346,18 @@ def generate_path_and_graph_from_adj(adj_path, cpnet_graph_path, output_path, gr
     all_len = []
 
     check_path(output_path)
-    check_path(graph_output_path)
-    with Pool(num_processes) as p, open(output_path, 'w') as path_output, open(graph_output_path, 'w') as graph_output:
+    # check_path(graph_output_path)
+    # with Pool(num_processes) as p, open(output_path, 'w') as path_output, open(graph_output_path, 'w') as graph_output:
+    with Pool(num_processes) as p, open(output_path, 'w') as path_output:
         for pfr_qa, graph, lengths in tqdm(p.imap(find_paths_from_adj_per_inst, adj_concept_pairs), total=len(adj_concept_pairs), desc='Searching for paths'):
-            # path_output.write(json.dumps(pfr_qa) + '\n')
-            graph_output.write(json.dumps(graph) + '\n')
+            path_output.write(json.dumps(pfr_qa) + '\n')
+            # graph_output.write(json.dumps(graph) + '\n')
             all_len.append(lengths)
     if dump_len:
         with open(adj_path+'.len.pk', 'wb') as f:
             pickle.dump(all_len, f)
-    # print(f'paths saved to {output_path}')
-    print(f'graphs saved to {graph_output_path}')
+    print(f'paths saved to {output_path}')
+    # print(f'graphs saved to {graph_output_path}')
     print()
 
 
@@ -409,3 +426,6 @@ def find_relational_paths_from_paths(pruned_paths_path, output_path, num_process
             fout.write(json.dumps(pfr_qa) + '\n')
     print(f'paths saved to {output_path}')
     print()
+
+
+

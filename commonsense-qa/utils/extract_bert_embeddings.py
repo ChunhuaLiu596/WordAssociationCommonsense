@@ -11,24 +11,15 @@ from collections import Counter
 
 import torch
 from torch import nn
-from transformers import BertModel, BertTokenizer
+from transformers import (OpenAIGPTTokenizer, BertTokenizer, XLNetTokenizer, RobertaTokenizer, AlbertTokenizer)
+from lm_feature_extractor import TextEncoder, MODEL_NAME_TO_CLASS
+
 
 try:
     from .utils import check_path
 except:
     from utils import check_path
 
-
-def extract_bert_embeddings(dataset, node_file, output_dir):
-
-    node_list = load_nodes(node_file)
-    #node_list = graph.iter_nodes()
-    bert_model = BertLayer(dataset)
-    embeddings = bert_model.forward(node_list)
-
-    output_file  = os.path.join(output_dir, dataset + "_bert_embeddings.pt")
-    torch.save(embeddings, output_file)
-    print("Writing {}".format(output_file))
 
 def load_resources(cpnet_vocab_path):
     global concept2id, id2concept, relation2id, id2relation
@@ -41,6 +32,7 @@ def convert_concept_to_bert_input(tokenizer, concept, max_seq_length=32):
     tokens = [tokenizer.cls_token] +  concept_tokens + [tokenizer.sep_token]
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
     segment_ids = [0] * (len(tokens))
+    span = ( 1,  1 + len(concept_tokens))
 
     assert len(input_ids) == len(segment_ids) == len(input_ids)
 
@@ -49,28 +41,44 @@ def convert_concept_to_bert_input(tokenizer, concept, max_seq_length=32):
     input_mask = [1] * len(input_ids) + [0] * pad_len
     input_ids += [0] * pad_len
     segment_ids += [0] * pad_len
-    span = (1, 1 + len(concept_tokens))
 
     assert span[1] + 1 == len(tokens)
     assert max_seq_length == len(input_ids) == len(segment_ids) == len(input_mask)
 
+   
     return input_ids, input_mask, segment_ids, span
 
-def extract_bert_node_features_for_concepts(cpnet_vocab_path, output_path, max_seq_length, device, batch_size, layer_id=-1, cache_path=None, use_cache=True, debug=False):
+def extract_bert_node_features_for_concepts(cpnet_vocab_path, model_name, output_path, max_seq_length, device, batch_size, from_checkpoint, layer_id=-1,  cache_path=None, use_cache=True, debug=False):
     global id2concept
     # if id2concept is None:
     load_resources(cpnet_vocab_path=cpnet_vocab_path)
     check_path(output_path)
 
-    print(f'extracting concepts embeddings from {cpnet_vocab_path}')
+    print(f'extracting bert node embeddings for {cpnet_vocab_path}')
+    proxies = {
+    "http": "http://10.10.1.10:3128",
+    "https": "https://10.10.1.10:1080",
+    }
+    # tokenizer = BertTokenizer.from_pretrained('bert-large-uncased', do_lower_case=True, proxies=proxies)
+    # model = BertModel.from_pretrained('/home/chunhua/Commonsense/CPG/cache/bert-large-uncased', output_hidden_states=True).to(device)
+    
+    model_type = MODEL_NAME_TO_CLASS[model_name]
+    tokenizer_class = {'bert': BertTokenizer, 'xlnet': XLNetTokenizer, 'roberta': RobertaTokenizer, 'albert': AlbertTokenizer}.get(model_type)
+    if model_name in ('bert-large-uncased',):
+        cache_dir = '../cache/bert-large-uncased/'
+        # tokenizer = BertTokenizer.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
+        tokenizer = BertTokenizer.from_pretrained('bert-large-uncased', do_lower_case=True, proxies=proxies)
+    else:
+        cache_dir='../cache/'
+        tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir=cache_dir)
 
-    tokenizer = BertTokenizer.from_pretrained('bert-large-uncased', do_lower_case=True)
-    model = BertModel.from_pretrained('bert-large-uncased', output_hidden_states=True).to(device)
+    model = TextEncoder(model_name, from_checkpoint=from_checkpoint, cache_dir=cache_dir)
+    model.to(device)
     model.eval()
     
     all_input_ids, all_input_mask, all_segment_ids, all_span = [], [], [], []
     if debug:
-        id2concept=id2concept[:10]
+        id2concept=id2concept[:15]
     n = len(id2concept)
     for concept in tqdm(id2concept, total=n, desc='Calculating input features'):
         concept = concept.replace('_', ' ') 
@@ -89,20 +97,20 @@ def extract_bert_node_features_for_concepts(cpnet_vocab_path, output_path, max_s
     with torch.no_grad():
         for a in tqdm(range(0, n, batch_size), total=n // batch_size + 1, desc='Extracting features'):
             b = min(a + batch_size, n)
-            batch = [x.to(device) for x in [all_input_ids[a:b], all_input_mask[a:b], all_segment_ids[a:b]]]
+            batch = [x.to(device) for x in [all_input_ids[a:b], all_input_mask[a:b], all_segment_ids[a:b], all_input_mask[a:b]]]
             outputs = model(*batch)
-            hidden_states = outputs[-1][layer_id]
-            mask = torch.arange(max_seq_length, device=device)[None, :]
-            mask = (mask >= all_span[a:b, 0, None]) & (mask < all_span[a:b, 1, None])
-            pooled = (hidden_states * mask.float().unsqueeze(-1)).sum(1)
-            pooled = pooled / (all_span[a:b, 1].float() - all_span[a:b, 0].float() + 1e-5).unsqueeze(1)
-            concept_vecs.append(pooled.cpu())
+
+            all_hidden_states = outputs[-1]
+            hidden_states = all_hidden_states[layer_id]
+
+            cur_concept_vecs = hidden_states[:, 0]
+            concept_vecs.append(cur_concept_vecs.cpu())
         concept_vecs = torch.cat(concept_vecs, 0).numpy()
 
     check_path(output_path)
     res = np.array(concept_vecs , dtype="float32")
     np.save(output_path, res)
-    print(f'save {output_path}, {res.shape()}')
+    print('save {} {}'.format(output_path, res.shape))
     print('done!')
 
 if __name__=='__main__':
@@ -113,10 +121,14 @@ if __name__=='__main__':
     parser.add_argument("--device", type=int, required=True, help="gpu device number")
     parser.add_argument("--max_seq_length", type=int, default=32, help="max sequence length")
     parser.add_argument("--batch_size", type=int, default=4, help="batch size")
+    parser.add_argument('-ckpt', '--from_checkpoint', default='None', help='load from a checkpoint')
     parser.add_argument("--debug", action='store_true', help="batch size")
-
+    parser.add_argument("--model_name", type=str, default='albert-xxlarge-v2', help="output directory to store metrics and model file")
     args = parser.parse_args()
+    
+    model_type = MODEL_NAME_TO_CLASS[args.model_name]
+    args.output_path = os.path.join(args.output_path, f"concept_{model_type}_emb.npy")
 
-    extract_bert_node_features_for_concepts(args.cpnet_vocab_path, args.output_path, args.max_seq_length, args.device, args.batch_size, layer_id=-1, cache_path=None, use_cache=True, debug=args.debug)
+    extract_bert_node_features_for_concepts(args.cpnet_vocab_path, args.model_name, args.output_path, args.max_seq_length, args.device, args.batch_size, args.from_checkpoint, layer_id=-1, cache_path=None, use_cache=True, debug=args.debug)
 
 

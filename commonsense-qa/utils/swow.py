@@ -1,5 +1,6 @@
 import networkx as nx
 import nltk
+from nltk.corpus import stopwords
 import json
 import math
 from tqdm import tqdm
@@ -20,7 +21,10 @@ try:
 except ImportError:
     from utils import check_file
 
-__all__ = ['extract_english', 'construct_graph', 'merged_relations']
+
+__all__ = ['extract_english', 'construct_graph', 'merged_relations', 'merged_relations_1rel', 'relation_groups']
+global relation_groups, relation_groups_1rel
+
 swow_rel_forward = "forwardassociated"
 swow_rel_bidirectional = "bidirectionalassociated"
 swow_rel_backward = "backwardassociated"
@@ -33,11 +37,26 @@ relation_groups = [
 
 merged_relations = [
    swow_rel_forward,
-   swow_rel_bidirectional 
+   swow_rel_bidirectional,
 ]
 
-def load_merge_relation():
+relation_groups_1rel= [
+  swow_rel_forward,
+]
+
+merged_relations_1rel = [
+   swow_rel_forward,
+]
+
+
+def load_merge_relation(kg_name):
     relation_mapping = dict()
+
+    if kg_name == 'swow':
+        relation_groups = relation_groups
+    if kg_name == 'swow1rel':
+        relation_groups = relation_groups_1rel
+
     for line in relation_groups:
         ls = line.strip().split('/')
         rel = ls[0]
@@ -61,12 +80,13 @@ def del_pos(s):
 
 
 class SWOW(object):
-    def __init__(self, swow_file, output_csv_path=None,  output_vocab_path=None, word_pair_freq=1):
-
+    def __init__(self, swow_file, output_csv_path=None,  output_vocab_path=None, kg_name='swow', word_pair_freq=1):
+        self.kg_name = kg_name 
         self.swow_data = self.load_swow_en(swow_file)
         self.swow_cue_responses, self.concepts = self.forward_associations(self.swow_data, word_pair_freq, unify_nodes=True)
         self.swow_cue_responses_relation = self.add_relations(self.swow_cue_responses)
         if output_csv_path is not None:
+            self.write_cues(self.swow_cue_responses.keys(), output_path="./data/swow/swow_cues.csv")
             self.write_forward_associations_relation(self.swow_cue_responses_relation, output_csv_path, output_vocab_path)
 
     def load_swow_en(self, input_file):
@@ -191,22 +211,29 @@ class SWOW(object):
         return cue_responses, concepts
 
     def add_relations(self, cue_responses):
-        cue_responses_relation= set()
+        cue_responses_relation= list() # bugfix: use list() instead of set(), guaranteeing vocab order to be the same for everytime 
         count_bi = 0
         count_fw = 0
         for cue, vs in cue_responses.items():
             for response, freq in vs.items():
                 rel_forward = swow_rel_forward.lower()
-                cue_responses_relation.add((rel_forward, cue, response, freq))
+                cue_responses_relation.append((rel_forward, cue, response, freq))
                 count_fw +=1
 
-                if response in cue_responses and cue in cue_responses[response]:
-                    rel_bidirection = swow_rel_bidirectional.lower()
-                    cue_responses_relation.add((rel_bidirection, cue, response, freq))
-                    count_bi+=1
+                if self.kg_name == 'swow':
+                    if response in cue_responses and cue in cue_responses[response]:
+                        rel_bidirection = swow_rel_bidirectional.lower()
+                        cue_responses_relation.append((rel_bidirection, cue, response, freq))
+                        count_bi+=1
         print("Add {} forward association triples".format(count_fw))
         print("Add {} bi-directional association triples".format(count_bi))
         return cue_responses_relation
+
+    def write_cues(self, cues, output_path):
+        with open(output_path, 'w') as fout:
+            for cue in cues:
+              fout.write(cue+'\n')
+        print("write {} {} cues".format(output_path, len(cues)))
 
     def write_forward_associations_relation(self, cue_responses_relation,
                     output_csv_path, output_vocab_path):
@@ -219,7 +246,7 @@ class SWOW(object):
         concepts_seen = set()
         check_path(output_csv_path)
         fout = open(output_csv_path, "w", encoding="utf8")
-        cue_responses_relation = list(cue_responses_relation)
+        # cue_responses_relation = list(cue_responses_relation)
         cnt=0
         for (rel, head, tail, freq) in cue_responses_relation:
             fout.write('\t'.join([rel, head, tail, str(freq)]) + '\n')
@@ -276,16 +303,15 @@ def extract_english(swow_path, output_csv_path, output_vocab_path, kg_name, word
     :return:
     """
     print('extracting {} concepts and relations from SWOW...'.format(language))
-    SWOW(swow_path, output_csv_path, output_vocab_path, word_pair_freq)
+    SWOW(swow_path, output_csv_path, output_vocab_path, kg_name, word_pair_freq)
 
 
-def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True):
-    print('generating ConceptNet graph file...')
-    nltk.download('stopwords', quiet=True)
+def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True, kg_name = 'swow'):
+    print('generating {} graph file...'.format(kg_name))
+    # nltk.download('stopwords', quiet=True)
     nltk_stopwords = nltk.corpus.stopwords.words('english')
     nltk_stopwords += ["like", "gone", "did", "going", "would", "could",
                        "get", "in", "up", "may", "wanter"]  # issue: mismatch with the stop words in grouding.py
-
     blacklist = set(["uk", "us", "take", "make", "object", "person", "people"])  # issue: mismatch with the blacklist in grouding.py
 
     concept2id = {}
@@ -294,7 +320,11 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_path, prune=True):
         id2concept = [w.strip() for w in fin]
     concept2id = {w: i for i, w in enumerate(id2concept)}
 
-    id2relation = merged_relations
+    if kg_name=='swow':
+        id2relation = merged_relations
+    elif kg_name=='swow1rel':
+        id2relation = merged_relations_1rel
+
     relation2id = {r: i for i, r in enumerate(id2relation)}
 
     graph = nx.MultiDiGraph()

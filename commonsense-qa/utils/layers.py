@@ -4,7 +4,10 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import numpy as np
 import math
-from utils.utils import freeze_net
+try:
+    from utils.utils import freeze_net
+except:
+    from utils import freeze_net
 
 
 def gelu(x):
@@ -107,7 +110,8 @@ class MaxPoolLayer(nn.Module):
             mask = (torch.arange(sl, device=inputs.device).unsqueeze(0).expand(bs, sl) >= mask_or_lengths.unsqueeze(1))
         else:
             mask = mask_or_lengths
-        masked_inputs = inputs.masked_fill(mask.unsqueeze(-1).expand_as(inputs), float('-inf'))
+        # masked_inputs = inputs.masked_fill(mask.unsqueeze(-1).expand_as(inputs), float('-inf'))
+        masked_inputs = inputs.masked_fill(mask.unsqueeze(-1).expand_as(inputs), -1e7)
         max_pooled = masked_inputs.max(1)[0]
         return max_pooled
 
@@ -480,7 +484,9 @@ def masked_softmax(vector: torch.Tensor,
             # result = result / (result.sum(dim=dim, keepdim=True) + 1e-13)
             raise NotImplementedError
         else:
-            masked_vector = vector.masked_fill(mask.to(dtype=torch.bool), mask_fill_value)
+            # print(mask)
+            # masked_vector = vector.masked_fill(mask.to(dtype=torch.bool), mask_fill_value)
+            masked_vector = vector.masked_fill(mask.to(dtype=torch.uint8), mask_fill_value)
             result = nn.functional.softmax(masked_vector, dim=dim)
             result = result * (1 - mask)
     return result

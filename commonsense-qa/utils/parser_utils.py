@@ -38,6 +38,9 @@ EMB_PATHS = {
     'lm': './data/transe/glove.transe.sgd.ent.npy',
     'numberbatch': './data/transe/concept.nb.npy',
     'tzw': './data/cpnet/tzw.ent.npy',
+    'bert': './data/cpnet/concept_albert_emb.npy',
+    'roberta': './data/cpnet/concept_roberta_emb.npy',
+    'albert': './data/cpnet/concept_albert_emb.npy',
 }
 
 
@@ -46,12 +49,13 @@ def add_data_arguments(parser):
     parser.add_argument('--test_prediction_path', default='None', type=str)
     parser.add_argument('--save_model', default=0, type=int)
 
-    parser.add_argument('--ent_emb', default=['tzw'], choices=['transe', 'numberbatch', 'lm', 'tzw'], nargs='+', help='sources for entity embeddings')
+    parser.add_argument('--ent_emb', default=['tzw'], choices=['transe', 'numberbatch', 'lm', 'tzw', 'bert', 'roberta', 'albert'], nargs='+', help='sources for entity embeddings')
     parser.add_argument('--ent_emb_paths', default=['./data/transe/glove.transe.sgd.ent.npy'], nargs='+', help='paths to entity embedding file(s)')
     parser.add_argument('--rel_emb_path', default='./data/transe/glove.transe.sgd.rel.npy', help='paths to relation embedding file')
     # dataset specific
     parser.add_argument('-ds', '--dataset', default='csqa', help='dataset name')
-    parser.add_argument('-kg', '--kg_name', default='cpnet', help='cpnet name')
+    parser.add_argument('-kg', '--kg_name', default='cpnet', help='knowlege graph name')
+
     parser.add_argument('-ih', '--inhouse', default=True, type=bool_flag, nargs='?', const=True, help='run in-house setting')
     parser.add_argument('--inhouse_train_qids', default='./data/{dataset}/inhouse_split_qids.txt', help='qids of the in-house training set')
     # statements
@@ -64,6 +68,7 @@ def add_data_arguments(parser):
     parser.add_argument('-ckpt', '--from_checkpoint', default='None', help='load from a checkpoint')
     # preprocessing options
     parser.add_argument('-sl', '--max_seq_len', default=64, type=int)
+    parser.add_argument('--format', default=[], choices=['add_qa_prefix', 'no_extra_sep', 'fairseq', 'add_prefix_space'], nargs='*')
     # set dataset defaults
     args, _ = parser.parse_known_args()
     parser.set_defaults(ent_emb_paths=[EMB_PATHS.get(s) for s in args.ent_emb],
@@ -83,6 +88,7 @@ def add_data_arguments(parser):
 
 def add_encoder_arguments(parser):
     parser.add_argument('-enc', '--encoder', default='bert-large-uncased', help='encoder type')
+    parser.add_argument('-spool', '--lm_sent_pool', default='cls', choices=['cls', 'mean', 'max'],help='sent vec pooler')
     parser.add_argument('--encoder_layer', default=-1, type=int, help='encoder layer ID to use as features (used only by non-LSTM encoders)')
     parser.add_argument('-elr', '--encoder_lr', default=2e-5, type=float, help='learning rate')
     # used only for LSTM encoder
@@ -94,7 +100,7 @@ def add_encoder_arguments(parser):
     parser.add_argument('--encoder_dropouth', default=0.1, type=float, help='dropout applied to lstm hidden states')
     parser.add_argument('--encoder_pretrained_emb', default='./data/glove/glove.6B.300d.npy', help='path to pretrained emb in .npy format')
     parser.add_argument('--encoder_freeze_emb', default=True, type=bool_flag, nargs='?', const=True, help='freeze lstm input embedding layer')
-    parser.add_argument('--encoder_pooler', default='max', choices=['max', 'mean'], help='pooling function')
+    parser.add_argument('--encoder_pooler', default='max', choices=['max', 'mean', 'cls'], help='pooling function')
     args, _ = parser.parse_known_args()
     # parser.set_defaults(encoder_lr=ENCODER_DEFAULT_LR[args.dataset].get(args.encoder, ENCODER_DEFAULT_LR['default']))
 
@@ -113,7 +119,7 @@ def add_optimization_arguments(parser):
 
 
 def add_additional_arguments(parser):
-    parser.add_argument('--log_interval', default=20, type=int)
+    parser.add_argument('--log_interval', default=50, type=int)
     parser.add_argument('--cuda', default=True, type=bool_flag, nargs='?', const=True, help='use GPU')
     parser.add_argument('--seed', default=0, type=int, help='random seed')
     parser.add_argument('--debug', default=False, type=bool_flag, nargs='?', const=True, help='run in debug mode')

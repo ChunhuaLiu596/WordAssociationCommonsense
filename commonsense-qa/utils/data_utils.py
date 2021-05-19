@@ -5,7 +5,10 @@ import numpy as np
 import torch
 from transformers import (OpenAIGPTTokenizer, BertTokenizer, XLNetTokenizer, RobertaTokenizer, AlbertTokenizer)
 
-from utils.tokenization_utils import *
+try:
+    from utils.tokenization_utils import *
+except:
+    from tokenization_utils import *
 
 GPT_SPECIAL_TOKENS = ['_start_', '_delimiter_', '_classify_']
 
@@ -234,13 +237,64 @@ class MultiGPUNxgDataBatchGenerator(object):
         else:
             return obj.to(device)
 
+
 def load_2hop_relational_paths(rpath_jsonl_path, cpt_jsonl_path=None, emb_pk_path=None,
                                max_tuple_num=200, num_choice=None, node_feature_type=None, relation_types=17):
     with open(rpath_jsonl_path, 'r') as fin:
         rpath_data = [json.loads(line) for line in fin]
+   
+    n_samples = len(rpath_data)
+    qa_data = torch.zeros((n_samples, max_tuple_num, 2), dtype=torch.long)
+    rel_data = torch.zeros((n_samples, max_tuple_num), dtype=torch.long)
+    num_tuples = torch.zeros((n_samples,), dtype=torch.long)
 
-    with open(cpt_jsonl_path, 'rb') as fin:
-        adj_data = pickle.load(fin)  # (adj, concepts, qm, am)
+    all_masks = []
+    for i, data  in enumerate(tqdm(rpath_data, total=n_samples, desc='loading QA pairs')):
+        cur_qa = []
+        cur_rel = []
+        for dic in data['paths']:
+            if len(dic['rel']) == 1:
+                cur_qa.append([dic['qc'], dic['ac']])
+                cur_rel.append(dic['rel'][0])
+            elif len(dic['rel']) == 2:
+                cur_qa.append([dic['qc'], dic['ac']])
+                cur_rel.append(relation_types*2 + dic['rel'][0] * relation_types*2 + dic['rel'][1])
+            else:
+                raise ValueError('Invalid path length')
+            if len(cur_qa) >= max_tuple_num:
+                break
+        assert len(cur_qa) == len(cur_rel)
+
+        if len(cur_qa) > 0:
+            qa_data[i][:len(cur_qa)] = torch.tensor(cur_qa)
+            rel_data[i][:len(cur_rel)] = torch.tensor(cur_rel)
+            num_tuples[i] = (len(cur_qa) + len(cur_rel)) // 2  # code style suggested by kiwisher
+
+    if num_choice is not None:
+        qa_data = qa_data.view(-1, num_choice, max_tuple_num, 2)
+        rel_data = rel_data.view(-1, num_choice, max_tuple_num)
+        num_tuples = num_tuples.view(-1, num_choice)
+
+    flat_rel_data = rel_data.view(-1, max_tuple_num)
+    flat_num_tuples = num_tuples.view(-1)
+    valid_mask = (torch.arange(max_tuple_num) < flat_num_tuples.unsqueeze(-1)).float()
+    n_1hop_paths = ((flat_rel_data < relation_types*2).float() * valid_mask).sum(1)
+    n_2hop_paths = ((flat_rel_data >= relation_types*2).float() * valid_mask).sum(1)
+    print('| #paths: {} | average #1-hop paths: {} | average #2-hop paths: {} | #w/ 1-hop {} | #w/ 2-hop {} |'.format(flat_num_tuples.float().mean(0), n_1hop_paths.mean(), n_2hop_paths.mean(),
+                                                                                                                      (n_1hop_paths > 0).float().mean(), (n_2hop_paths > 0).float().mean()))
+    return (qa_data, rel_data, num_tuples)
+
+
+
+
+
+def load_2hop_relational_paths_old(rpath_jsonl_path, cpt_jsonl_path=None, emb_pk_path=None,
+                               max_tuple_num=200, num_choice=None, node_feature_type=None, relation_types=17):
+    with open(rpath_jsonl_path, 'r') as fin:
+        rpath_data = [json.loads(line) for line in fin]
+    if cpt_jsonl_path is not None: 
+        with open(cpt_jsonl_path, 'rb') as fin:
+            adj_data = pickle.load(fin)  # (adj, concepts, qm, am)
 
     n_samples = len(rpath_data)
     qa_data = torch.zeros((n_samples, max_tuple_num, 2), dtype=torch.long)
@@ -649,7 +703,19 @@ def load_bert_xlnet_roberta_input_tensors(statement_jsonl_path, model_type, mode
         return all_input_ids, all_input_mask, all_segment_ids, all_output_mask, all_label
 
     tokenizer_class = {'bert': BertTokenizer, 'xlnet': XLNetTokenizer, 'roberta': RobertaTokenizer, 'albert': AlbertTokenizer}.get(model_type)
-    tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir='../cache/')
+
+    proxies = {
+    "http": "http://10.10.1.10:3128",
+    "https": "https://10.10.1.10:1080",
+    }
+    if model_name in ('bert-large-uncased','bert-base-uncased'):
+        cache_dir = f'../cache/{model_name}/'
+        tokenizer = BertTokenizer.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
+    else:
+        tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir='../cache/', proxies=proxies)
+    # except:
+        # tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir=f'../cache/{model_name}', proxies=proxies)
+
     examples = read_examples(statement_jsonl_path)
     features = convert_examples_to_features(examples, list(range(len(examples[0].endings))), max_seq_length, tokenizer,
                                             cls_token_at_end=bool(model_type in ['xlnet']),  # xlnet has a cls token at the end
@@ -694,10 +760,62 @@ def load_lstm_input_tensors(input_jsonl_path, max_seq_length):
     input_lengths = torch.tensor(input_lengths, dtype=torch.long)
     return qids, labels, input_ids, input_lengths
 
+def load_input_tensors_separately(input_jsonl_path, max_seq_length):
+    print("loading questions and answers input tensors separately")
+    def _truncate_seq(tokens_a, max_length):
+        while len(tokens_a)  > max_length:
+            tokens_a.pop() 
+
+    tokenizer = WordTokenizer.from_pretrained('lstm')
+    qids, labels, input_qids, input_aids, input_qlengths, input_alengths = [], [], [], [], [], []
+    pad_id, = tokenizer.convert_tokens_to_ids([PAD_TOK])
+    with open(input_jsonl_path, "r", encoding="utf-8") as fin:
+        for line in fin:
+            input_json = json.loads(line)
+            qids.append(input_json['id'])
+            label = ord(input_json.get("answerKey", "A")) - ord("A")
+            labels.append(label)
+            instance_input_qids, instance_qinput_lengths = [], []
+            instance_input_aids, instance_ainput_lengths = [], []
+
+            question_text = tokenizer.tokenize(input_json["question"]["stem"])
+            question_ids = tokenizer.convert_tokens_to_ids(question_text)
+            _truncate_seq(question_ids, max_seq_length)
+            question_ids += [pad_id] * (max_seq_length - len(question_ids))
+            # print(f"question_text: {question_text} | {question_ids}")
+            # print(f"answer: {label}")
+
+            for ending in input_json["question"]["choices"]:
+                answer_text= tokenizer.tokenize(ending["text"])
+                # print(f"answer_text: {answer_text}")
+
+                answer_ids = tokenizer.convert_tokens_to_ids(answer_text)
+                _truncate_seq(answer_ids, max_seq_length)
+                answer_ids += [pad_id] * (max_seq_length - len(answer_ids))
+                instance_input_qids.append(question_ids)
+                instance_input_aids.append(answer_ids)
+
+                instance_qinput_lengths.append(len(question_ids))
+                instance_ainput_lengths.append(len(answer_ids))
+
+            input_qids.append(instance_input_qids)
+            input_qlengths.append(instance_qinput_lengths)
+            input_aids.append(instance_input_aids)
+            input_alengths.append(instance_ainput_lengths)
+
+    labels = torch.tensor(labels, dtype=torch.long)
+    input_aids = torch.tensor(input_aids, dtype=torch.long)
+    input_alengths = torch.tensor(input_alengths, dtype=torch.long)
+
+    input_qids = torch.tensor(input_qids, dtype=torch.long)
+    input_qlengths = torch.tensor(input_qlengths, dtype=torch.long)
+    return qids, labels, input_qids, input_aids, input_qlengths, input_alengths
 
 def load_input_tensors(input_jsonl_path, model_type, model_name, max_seq_length):
     if model_type in ('lstm',):
         return load_lstm_input_tensors(input_jsonl_path, max_seq_length)
+    elif model_type in ('gru',):
+        return load_input_tensors_separately(input_jsonl_path, max_seq_length)
     elif model_type in ('gpt',):
         return load_gpt_input_tensors(input_jsonl_path, max_seq_length)
     elif model_type in ('bert', 'xlnet', 'roberta', 'albert'):

@@ -105,6 +105,7 @@ def load_matcher(nlp, pattern_path):
     matcher = Matcher(nlp.vocab)
     for concept, pattern in all_patterns.items():
         matcher.add(concept, None, pattern)
+        # matcher.add(concept, pattern)
     return matcher
 
 
@@ -113,7 +114,8 @@ def ground_qa_pair(qa_pair):
     # print('load matcher')
     if nlp is None or matcher is None:
         nlp = spacy.load('en_core_web_sm', disable=['ner', 'parser', 'textcat'])
-        nlp.add_pipe(nlp.create_pipe('sentencizer'))
+        # nlp.add_pipe(nlp.create_pipe('sentencizer'))
+        # nlp.add_pipe("sentencizer")
         matcher = load_matcher(nlp, PATTERN_PATH)
 
     s, a = qa_pair
