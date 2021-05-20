@@ -1,9 +1,9 @@
 import pickle
-
 import dgl
 import numpy as np
 import torch
 from transformers import (OpenAIGPTTokenizer, BertTokenizer, XLNetTokenizer, RobertaTokenizer, AlbertTokenizer)
+from transformers import AutoTokenizer, AutoModelForMaskedLM
 
 try:
     from utils.tokenization_utils import *
@@ -708,13 +708,14 @@ def load_bert_xlnet_roberta_input_tensors(statement_jsonl_path, model_type, mode
     "http": "http://10.10.1.10:3128",
     "https": "https://10.10.1.10:1080",
     }
-    if model_name in ('bert-large-uncased','bert-base-uncased'):
-        cache_dir = f'../cache/{model_name}/'
-        tokenizer = BertTokenizer.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
-    else:
-        tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir='../cache/', proxies=proxies)
+    # if model_name in ('bert-large-uncased','bert-base-uncased'):
+        # cache_dir = f'../cache/{model_name}/'
+        # tokenizer = BertTokenizer.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
+    # else:
+        # tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir='../cache/', proxies=proxies)
     # except:
         # tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir=f'../cache/{model_name}', proxies=proxies)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=f'../cache/')
 
     examples = read_examples(statement_jsonl_path)
     features = convert_examples_to_features(examples, list(range(len(examples[0].endings))), max_seq_length, tokenizer,

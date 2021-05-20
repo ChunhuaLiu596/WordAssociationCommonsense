@@ -3,7 +3,41 @@ import torch.nn as nn
 
 from modeling.modeling_encoder import TextEncoder, MODEL_NAME_TO_CLASS
 from utils.data_utils import BatchGenerator, load_input_tensors
+from utils.layers import *
 
+
+
+# class LMForMultipleChoice(nn.Module):
+#     def __init__(self, model_name, from_checkpoint,
+#                  concept_num, concept_dim, relation_num, relation_dim, concept_in_dim, hidden_size, num_hidden_layers,
+#                  num_attention_heads, fc_size, num_fc_layers, dropout, pretrained_concept_emb=None,
+#                  pretrained_relation_emb=None, freeze_ent_emb=True, init_range=0, ablation=None,
+#                  use_contextualized=False, emb_scale=1.0, encoder_config={}):
+#         super().__init__()
+#         print("Initializaing LMForMultipleChoice")
+#         self.use_contextualized = use_contextualized
+#         self.encoder = TextEncoder(model_name, from_checkpoint=from_checkpoint, **encoder_config)
+
+#         self.dropout_m = nn.Dropout(dropout)
+#         self.hid2out = MLP(self.encoder.sent_dim, fc_size, 1, num_fc_layers, dropout, batch_norm=False, layer_norm=True)
+#         self.activation = GELU()
+#         self.decoder=self.hid2out
+
+    # def forward(self, *inputs, layer_id=-1):
+    #     bs, nc = inputs[0].size(0), inputs[0].size(1)
+    #     inputs = [x.view(x.size(0) * x.size(1), *x.size()[2:]) for x in inputs]  # merge the batch dimension and the num_choice dimension
+    #     if self.use_contextualized:
+    #         *lm_inputs, path_embedding, qa_ids, rel_ids, num_tuples, emb_data = inputs
+    #     else:
+    #         *lm_inputs, path_embedding, qa_ids, rel_ids, num_tuples = inputs
+    #         emb_data = None
+    #     print("debugging lalla")
+    #     print(*lm_inputs)
+    #     sent_vecs, all_hidden_states = self.encoder(*lm_inputs, layer_id=layer_id)
+
+    #     logits = self.hid2out(self.dropout_m(sent_vecs))
+    #     logits = logits.view(bs, nc)
+    #     return logits, None
 
 class LMForMultipleChoice(nn.Module):
 
@@ -17,11 +51,9 @@ class LMForMultipleChoice(nn.Module):
         bs, nc = inputs[0].size(0), inputs[0].size(1)
         inputs = [x.view(x.size(0) * x.size(1), *x.size()[2:]) for x in inputs]  # merge the batch dimension and the num_choice dimension
         sent_vecs, all_hidden_states = self.encoder(*inputs, layer_id=layer_id)
-        # print(sent_vecs)
         sent_vecs = self.dropout(sent_vecs)
         logits = self.decoder(sent_vecs).view(bs, nc)
-    
-        return logits #, None
+        return logits, None
 
 
 class LMDataLoader(object):
@@ -36,12 +68,12 @@ class LMDataLoader(object):
         self.is_inhouse = is_inhouse
 
         model_type = MODEL_NAME_TO_CLASS[model_name]
-        self.train_qids, self.train_labels, *self.train_data = load_input_tensors(train_statement_path, model_type, model_name, max_seq_length, format=format)
-        self.dev_qids, self.dev_labels, *self.dev_data = load_input_tensors(dev_statement_path, model_type, model_name, max_seq_length, format=format)
+        self.train_qids, self.train_labels, *self.train_data = load_input_tensors(train_statement_path, model_type, model_name, max_seq_length)
+        self.dev_qids, self.dev_labels, *self.dev_data = load_input_tensors(dev_statement_path, model_type, model_name, max_seq_length)
         assert all(len(self.train_qids) == x.size(0) for x in [self.train_labels] + self.train_data)
         assert all(len(self.dev_qids) == x.size(0) for x in [self.dev_labels] + self.dev_data)
         if test_statement_path is not None:
-            self.test_qids, self.test_labels, *self.test_data = load_input_tensors(test_statement_path, model_type, model_name, max_seq_length, format=format)
+            self.test_qids, self.test_labels, *self.test_data = load_input_tensors(test_statement_path, model_type, model_name, max_seq_length)
             assert all(len(self.test_qids) == x.size(0) for x in [self.test_labels] + self.test_data)
 
         if self.is_inhouse:

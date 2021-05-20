@@ -44,4 +44,6 @@
 
 # python utils/conceptnet_pos.py False
 
+
+#mcscript
 python preprocess.py cpnet --run mcscript -p 30
