@@ -39,13 +39,22 @@ from utils.layers import *
     #     logits = logits.view(bs, nc)
     #     return logits, None
 
-class LMForMultipleChoice(nn.Module):
 
-    def __init__(self, model_name, dropout=0.1, from_checkpoint=None, encoder_config={}):
+class LMForMultipleChoice(nn.Module):
+    def __init__(self, model_name, from_checkpoint,
+                 concept_num, concept_dim, relation_num, relation_dim, concept_in_dim, hidden_size, num_hidden_layers,
+                 num_attention_heads, fc_size, num_fc_layers, dropout, pretrained_concept_emb=None,
+                 pretrained_relation_emb=None, freeze_ent_emb=True, init_range=0, ablation=None,
+                 use_contextualized=False, emb_scale=1.0, encoder_config={}):
         super().__init__()
+        print("Initializaing LMForMultipleChoice")
+        self.use_contextualized = use_contextualized
         self.encoder = TextEncoder(model_name, from_checkpoint=from_checkpoint, **encoder_config)
-        self.dropout = nn.Dropout(dropout)
-        self.decoder = nn.Linear(self.encoder.sent_dim, 1)
+
+        self.dropout_m = nn.Dropout(dropout)
+        self.hid2out = MLP(self.encoder.sent_dim, fc_size, 1, num_fc_layers, dropout, batch_norm=False, layer_norm=True)
+        self.activation = GELU()
+        self.decoder=self.hid2out
 
     def forward(self, *inputs, layer_id=-1):
         bs, nc = inputs[0].size(0), inputs[0].size(1)

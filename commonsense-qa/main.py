@@ -134,10 +134,16 @@ def main():
         parser.set_defaults(loss='margin_rank')
     args = parser.parse_args()
 
+<<<<<<< HEAD
     if args.kg_model !='None':
         merged_relations = get_merged_relations(args.kg_name)
         args.relation_types = len(merged_relations)
 
+=======
+    merged_relations = get_merged_relations(args.kg_name)
+    args.relation_types = len(merged_relations)
+    if args.kg_model is not None:
+>>>>>>> bac85f0821d25db42be5e91c4fa70fbcf4672378
         find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache, merged_relations )
         find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.dev_concepts, args.dev_rel_paths, args.nprocs, args.use_cache, merged_relations )
         if args.test_statements is not None:
@@ -412,8 +418,13 @@ def pred(args):
     # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
     if args.kg_model=='None':
         dataset = LMDataLoader(train_statement_path=args.train_statements, 
+<<<<<<< HEAD
                                dev_statement_path=args.dev_statements,
                                test_statement_path=args.test_statements, 
+=======
+                               train_concept_jsonl=args.train_concepts, 
+                               dev_statement_path=args.dev_statements,
+>>>>>>> bac85f0821d25db42be5e91c4fa70fbcf4672378
                                 batch_size=args.batch_size, 
                                 eval_batch_size=args.eval_batch_size,
                                 device=device, model_name=args.encoder, 
