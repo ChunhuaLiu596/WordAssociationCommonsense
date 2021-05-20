@@ -1,12 +1,15 @@
+import os,sys
 import random
 from multiprocessing import cpu_count
 
 from transformers import *
 
 from modeling.modeling_rn_pg import *
+from modeling.modeling_gconattn import *
 from utils.optimization_utils import OPTIMIZER_CLASSES
 from utils.parser_utils import *
 from utils.relpath_utils import *
+from utils.datasets import *
 
 def get_node_feature_encoder(encoder_name):
     return encoder_name.replace('-cased', '-uncased')
@@ -16,15 +19,19 @@ def get_merged_relations(kg_name):
         from utils.conceptnet import merged_relations
     elif kg_name in ('cpnet7rel'):
         from utils.conceptnet import merged_relations_7rel as merged_relations
+    elif kg_name in ('cpnet1rel'):
+        from utils.conceptnet import merged_relations_1rel as merged_relations
     elif kg_name in ('swow'):
         from utils.swow import merged_relations
+    elif kg_name in ('swow1rel'):
+        from utils.swow import merged_relations_1rel as merged_relations
     return merged_relations
 
 
 def cal_2hop_rel_emb(rel_emb):
     n_rel = rel_emb.shape[0]
     u, v = np.meshgrid(np.arange(n_rel), np.arange(n_rel))
-    expanded = rel_emb[v.reshape(-1)] + rel_emb[u.reshape(-1)]
+    expanded = rel_emb[v.reshape(-1)] + rel_emb[u.reshape(-1)] #posy: 2hop relemb = rel1 + rel2
     return np.concatenate([rel_emb, expanded], 0)
 
 
@@ -57,9 +64,10 @@ def main():
     parser.add_argument('--gen_id', type=int)
 
     # for finding relation paths
-    parser.add_argument('--cpnet_vocab_path', default='./data/cpnet/concept.txt')
-    parser.add_argument('--cpnet_graph_path', default='./data/cpnet/conceptnet.en.pruned.graph')
-    parser.add_argument('--path_embedding', default='path_embedding.pickle')
+    parser.add_argument('--cpnet_vocab_path', default=f'./data/{args.kg_name}/concept.txt')
+    parser.add_argument('--cpnet_graph_path', default=f'./data/{args.kg_name}/conceptnet.en.pruned.graph')
+    parser.add_argument('--graph_only', type=bool_flag, default=False, help='use concept embeddings from kg only for training')
+    parser.add_argument('--path_embedding_path', default=f'./path_embeddings/{args.dataset}/path_embedding_{args.kg_name}.pickle')
     parser.add_argument('-p', '--nprocs', type=int, default=cpu_count(), help='number of processes to use')
 
     # data
@@ -79,12 +87,13 @@ def main():
     parser.add_argument('--node_feature_type', choices=['full', 'cls', 'mention'])
     parser.add_argument('--use_cache', default=True, type=bool_flag, nargs='?', const=True, help='use cached data to accelerate data loading')
     parser.add_argument('--max_tuple_num', default=100, type=int)
+    parser.add_argument('--text_only', type=bool_flag, default=False, help='use text encoder only for training')
 
     # model architecture
     parser.add_argument('--ablation', default='att_pool', choices=['None', 'no_kg', 'no_2hop', 'no_1hop', 'no_qa', 'no_rel',
                                                              'mrloss', 'fixrel', 'fakerel', 'no_factor_mul', 'no_2hop_qa',
-                                                             'randomrel', 'encode_qas', 'multihead_pool', 'att_pool'], nargs='?', const=None, help='run ablation test')
-    parser.add_argument('--kg_model', default='pg_full', choices=['None', 'pg_full', 'pg_global', 'rn'], nargs='?', const=None, help='choose kg infusion model')                                                            
+                                                             'randomrel', 'encode_qas', 'multihead_pool', 'att_pool', 'kg_only'], nargs='?', const=None, help='run ablation test')
+    parser.add_argument('--kg_model', default='pg_full', choices=['None', 'pg_full', 'pg_global', 'rn', 'gconattn'], nargs='?', const=None, help='choose kg infusion model')                                                            
     parser.add_argument('--relation_types', default=17, choices=[17, 7, 2], help='relation types in of the knowledge graph') 
 
     parser.add_argument('--att_head_num', default=2, type=int, help='number of attention heads')
@@ -95,6 +104,7 @@ def main():
     parser.add_argument('--freeze_ent_emb', default=True, type=bool_flag, nargs='?', const=True, help='freeze entity embedding layer')
     parser.add_argument('--init_range', default=0.02, type=float, help='stddev when initializing with normal distribution')
     parser.add_argument('--emb_scale', default=1.0, type=float, help='scale pretrained embeddings')
+    parser.add_argument('--decoder_hidden_dim', default=300, type=int, help='number of LSTM hidden units')
 
     # regularization
     parser.add_argument('--dropoutm', type=float, default=0.3, help='dropout for mlp hidden units (0 = no dropout')
@@ -108,10 +118,11 @@ def main():
     parser.add_argument('--gpu_device', type=str, default='0')
     parser.add_argument('--grad_step', default=1, type=int)
 
+    parser.add_argument('--subsample', default=1.0, type=float)
     parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='show this help message and exit')
     args = parser.parse_args()
     if args.debug:
-        parser.set_defaults(batch_size=1, log_interval=1, eval_interval=5)
+        parser.set_defaults(batch_size=2, log_interval=1, eval_interval=5)
 
     # set ablation defaults
     elif args.ablation == 'mrloss':
@@ -177,8 +188,8 @@ def train(args):
     device = torch.device('cuda:{}'.format(args.gpu_device) if torch.cuda.is_available() else 'cpu')
 
     # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
-    path_embedding_path = os.path.join('./path_embeddings/', args.dataset, args.path_embedding)
-    dataset = LMRelationNetDataLoader(path_embedding_path, args.train_statements, args.train_rel_paths,
+    if args.kg_model!="gconattn":
+        dataset = LMRelationNetDataLoader(args.path_embedding_path, args.train_statements, args.train_rel_paths,
                                       args.dev_statements, args.dev_rel_paths,
                                       args.test_statements, args.test_rel_paths,
                                       batch_size=args.batch_size, eval_batch_size=args.eval_batch_size, device=device,
@@ -188,21 +199,44 @@ def train(args):
                                       use_contextualized=use_contextualized,
                                       train_adj_path=args.train_adj, dev_adj_path=args.dev_adj, test_adj_path=args.test_adj,
                                       train_node_features_path=args.train_node_features, dev_node_features_path=args.dev_node_features,
-                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type, relation_types=args.relation_types)
+                                      test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type, 
+                                      relation_types=args.relation_types, subsample=args.subsample)
 
+    else:
+        dataset = GconAttnDataLoader(train_statement_path=args.train_statements, train_concept_jsonl=args.train_concepts,
+                                 dev_statement_path=args.dev_statements, dev_concept_jsonl=args.dev_concepts,
+                                 test_statement_path=args.test_statements, test_concept_jsonl=args.test_concepts,
+                                 concept2id_path=args.cpnet_vocab_path, batch_size=args.batch_size, eval_batch_size=args.eval_batch_size,
+                                 device=device, model_name=args.encoder, max_cpt_num=max_cpt_num[args.dataset],
+                                 max_seq_length=args.max_seq_len, is_inhouse=args.inhouse, inhouse_train_qids_path=args.inhouse_train_qids,
+                                 subsample=args.subsample, format=args.format, pretrained_concept_emb=cp_emb,text_only=args.text_only, concept2deg_path=None)
     ###################################################################################################
     #   Build model                                                                                   #
     ###################################################################################################
 
     lstm_config = get_lstm_config_from_args(args)
-    model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
+    if args.kg_model=='None':
+        model = LMForMultipleChoice(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim, relation_num=relation_num, relation_dim=relation_dim, concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
+                          hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num, fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
+                          pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb, init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized, emb_scale=args.emb_scale, encoder_config=lstm_config)
+    elif args.kg_model=='gconattn':
+        # if args.ablation=='kg_only':
+            # model = KGAttn(model_name=args.encoder, concept_num=concept_num,
+                    #    concept_dim=relation_dim, concept_in_dim=concept_dim, freeze_ent_emb=args.freeze_ent_emb,
+                    #    pretrained_concept_emb=cp_emb, hidden_dim=args.decoder_hidden_dim, dropout=args.dropoutm, encoder_config=lstm_config)
+        # else:
+        model = LMGconAttn(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num,
+                       concept_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim), concept_in_dim=concept_dim, freeze_ent_emb=args.freeze_ent_emb,
+                       pretrained_concept_emb=cp_emb, hidden_dim=args.decoder_hidden_dim, dropout=args.dropoutm, ablation=args.ablation, encoder_config=lstm_config, lm_sent_pool=args.lm_sent_pool)
+    else:
+        model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
                           relation_num=relation_num, relation_dim=relation_dim,
                           concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
                           hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num,
                           fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
                           pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb,
                           init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
-                          emb_scale=args.emb_scale, encoder_config=lstm_config)
+                          emb_scale=args.emb_scale, encoder_config=lstm_config, kg_model=args.kg_model, lm_sent_pool=args.lm_sent_pool)
 
     try:
         model.to(device)
@@ -250,6 +284,8 @@ def train(args):
 
     print()
     print('-' * 71)
+    print(f'| batch_size: {args.batch_size} | num_epochs: {args.n_epochs} | num_train: {dataset.train_size()} |'
+          f' num_dev: {dataset.dev_size()} | num_test: {dataset.test_size()}')
     global_step, best_dev_epoch = 0, 0
     best_dev_acc, final_test_acc, total_loss = 0.0, 0.0, 0.0
     start_time = time.time()
@@ -258,7 +294,7 @@ def train(args):
     # try:
     rel_grad = []
     linear_grad = []
-    for epoch_id in range(args.n_epochs):
+    for epoch_id in tqdm(range(args.n_epochs), desc="Train Epoch"):
         if epoch_id == args.unfreeze_epoch:
             print('encoder unfreezed')
             unfreeze_net(model.encoder)
@@ -328,9 +364,9 @@ def train(args):
     #     print(e)
 
     print()
-    print('training ends in {} steps'.format(global_step))
-    print('best dev acc: {:.4f} (at epoch {})'.format(best_dev_acc, best_dev_epoch))
-    print('final test acc: {:.4f}'.format(final_test_acc))
+    print('training ends in {} steps (best dev at epoch {})'.format(global_step, best_dev_epoch))
+    print('best dev acc:\t{:.4f} '.format(best_dev_acc))
+    print('final test acc:\t{:.4f}'.format(final_test_acc))
     print()
 
 
@@ -354,9 +390,17 @@ def pred(args):
     else:
         use_contextualized = False
 
-    path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
-
-    dataset = LMRelationNetDataLoaderForPred(path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
+    # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
+    if args.kg_model=='gconattn':
+        dataset = GconAttnDataLoader(train_statement_path=args.train_statements, train_concept_jsonl=args.train_concepts,
+                                 dev_statement_path=args.dev_statements, dev_concept_jsonl=args.dev_concepts,
+                                 test_statement_path=args.test_statements, test_concept_jsonl=args.test_concepts,
+                                 concept2id_path=args.cpnet_vocab_path, batch_size=args.batch_size, eval_batch_size=args.eval_batch_size,
+                                 device=device, model_name=args.encoder, max_cpt_num=max_cpt_num[args.dataset],
+                                 max_seq_length=args.max_seq_len, is_inhouse=args.inhouse, inhouse_train_qids_path=args.inhouse_train_qids,
+                                 subsample=args.subsample, format=args.format, pretrained_concept_emb=cp_emb, text_only=args.text_only, concept2deg_path=None)
+    else:
+        dataset = LMRelationNetDataLoaderForPred(args.path_embedding_path, old_args.train_statements, old_args.train_rel_paths,
                                       old_args.dev_statements, old_args.dev_rel_paths,
                                       old_args.test_statements, old_args.test_rel_paths,
                                       batch_size=args.batch_size, eval_batch_size=args.eval_batch_size, device=device,
@@ -382,3 +426,4 @@ def pred(args):
 
 if __name__ == '__main__':
     main()
+    sys.exit()

@@ -5,8 +5,10 @@
 #SBATCH --mem=32G
 #SBATCH --partition=deeplearn
 #SBATCH -A punim0478
-#SBATCH --gres=gpu:v100:1
 #SBATCH -q gpgpudeeplearn
+#SBATCH --gres=gpu:v100sxm2:1
+#SBATCH --constraint=dlg3
+###SBATCH --gres=gpu:v100:1
 
 source $1 
 kg_name_out=$2

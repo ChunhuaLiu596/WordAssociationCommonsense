@@ -6,8 +6,13 @@ from transformers import (OPENAI_GPT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAI
                           XLNET_PRETRAINED_CONFIG_ARCHIVE_MAP, ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP)
 from transformers import AutoModel, AutoConfig
 from transformers import *
-from utils.layers import *
-from utils.data_utils import get_gpt_token_num
+import sys
+try:
+    from utils.layers import *
+    from utils.data_utils import get_gpt_token_num
+except:
+    from layers import *
+    from data_utils import get_gpt_token_num
 
 MODEL_CLASS_TO_NAME = {
     'gpt': list(OPENAI_GPT_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()),
@@ -44,6 +49,7 @@ class LSTMTextEncoder(nn.Module):
         self.rnns = nn.ModuleList([nn.LSTM(emb_size if l == 0 else hidden_size,
                                            (hidden_size if l != num_layers else output_size) // (2 if bidirectional else 1),
                                            1, bidirectional=bidirectional, batch_first=True) for l in range(num_layers)])
+        self.rnns = nn.GRU(input_size=emb_size,hidden_size=hidden_size, num_layers=num_layers, bidirectional=bidirectional, batch_first=True, dropout=hidden_p)
         self.pooler = self.pool_layer_classes[pool_function]()
 
         self.input_dropout = nn.Dropout(input_p)
@@ -78,18 +84,27 @@ class LSTMTextEncoder(nn.Module):
 class TextEncoder(nn.Module):
     valid_model_types = set(MODEL_CLASS_TO_NAME.keys())
 
-    def __init__(self, model_name, output_token_states=False, from_checkpoint=None, **kwargs):
+    def __init__(self, model_name, output_token_states=False, from_checkpoint=None, sent_pool='cls', **kwargs):
         super().__init__()
         self.model_type = MODEL_NAME_TO_CLASS[model_name]
         self.output_token_states = output_token_states
+        self.sent_pool = sent_pool
         assert not self.output_token_states or self.model_type in ('bert', 'roberta', 'albert')
 
         if self.model_type in ('lstm',):
             self.module = LSTMTextEncoder(**kwargs, output_hidden_states=True)
             self.sent_dim = self.module.output_size
         else:
-            module_config = AutoConfig.from_pretrained(model_name, output_hidden_states=True, cache_dir='../cache/')
-            self.module = AutoModel.from_pretrained(model_name, config=module_config, cache_dir='../cache/')
+            try:
+                cache_dir='../cache/'
+                module_config = AutoConfig.from_pretrained(model_name, output_hidden_states=True, cache_dir=cache_dir)
+                self.module = AutoModel.from_pretrained(model_name, config=module_config, cache_dir=cache_dir)
+            except:
+                cache_dir=f'../cache/{model_name}'
+                module_config = AutoConfig.from_pretrained(cache_dir, output_hidden_states=True, cache_dir=cache_dir)
+                self.module = AutoModel.from_pretrained(cache_dir, config=module_config, cache_dir=cache_dir)
+            # module_config = AutoConfig.from_pretrained(model_name, output_hidden_states=True, cache_dir='../cache/')
+            # self.module = AutoModel.from_pretrained(model_name, config=module_config, cache_dir='../cache/')
             if not from_checkpoint == 'None':
                 # self.module = self.module.from_pretrained(from_checkpoint, config=module_config, cache_dir='../cache/')
                 weight = torch.load(from_checkpoint, map_location='cpu')
@@ -109,7 +124,7 @@ class TextEncoder(nn.Module):
             self.sent_dim = self.module.config.n_embd if self.model_type in ('gpt',) else self.module.config.hidden_size
         print(self.model_type)
 
-    def forward(self, *inputs, layer_id=-1):
+    def forward(self, *inputs, layer_id=-1, ):
         '''
         layer_id: only works for non-LSTM encoders
         output_token_states: if True, return hidden states of specific layer and attention masks
@@ -137,5 +152,15 @@ class TextEncoder(nn.Module):
         else:
             if self.output_token_states:
                 return hidden_states, output_mask
-            sent_vecs = hidden_states[:, 0]
+            if self.sent_pool=='cls':
+                sent_vecs = hidden_states[:, 0]
+            elif self.sent_pool=='mean':
+                sent_vecs = hidden_states.mean(1)
+            elif self.sent_pool=='max':
+                sent_vecs = hidden_states.max(1)[0]
+            #### debugging sent_vecs
+            # print("sent_pool == {}".format(self.sent_pool))
+            # print("sent_vecs.size() == {}".format(sent_vecs.size()))
+            # print("sent_vecs: {}".format(sent_vecs))
+            # sys.exit()
         return sent_vecs, all_hidden_states

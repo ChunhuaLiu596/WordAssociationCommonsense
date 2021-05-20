@@ -9,27 +9,97 @@ import numpy as np
 import pickle
 from utils import check_path
 
-discard_relations=('relatedto','synonym', 'antonym', 'derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto', 'language','capital', 'field', 'genre', 'genus', 'knownfor', 'leader', 'occupation', 'product', 'notdesires', 'nothasproperty','notcapableof')
+discard_relations=('relatedto','synonym', 'antonym', 'derivedfrom', 'formof', 'etymologicallyderivedfrom','etymologicallyrelatedto')
 
 
 relation_groups=[
-    'isa/hasproperty/madeof/partof/definedas/instanceof/hasa/createdby/language/capital/field/genre/genus/leader/occupation/product',
-    'atlocation/locatednear/hascontext/similarto/symbolof/knownfor',
-    'hassubevent/hasfirstsubevent/haslastsubevent/hasprerequisite/entails/mannerof',
-    'causes/causesdesire/motivatedbygoal/desires/influencedby',
-    'usedfor/receivesaction',
-    'capableof',
-    'distinctfrom/notdesires/nothasproperty/notcapableof',
-]
-
-merged_relations = [
+    'forwardassociated',
+    'bidirectionalassociated',
     'isa',
+    'hasproperty',
+    'madeof',
+    'partof',
+    'definedas',
+    'instanceof',
+    'hasa',
+    'createdby',
+    'language',
+    'capital',
+    'field',
+    'genre',
+    'genus',
+    'leader',
+    'occupation',
+    'product',
     'atlocation',
+    'locatednear',
+    'hascontext',
+    'similarto',
+    'symbolof',
+    'knownfor',
     'hassubevent',
+    'hasfirstsubevent',
+    'haslastsubevent',
+    'hasprerequisite',
+    'entails',
+    'mannerof',
     'causes',
+    'causesdesire',
+    'motivatedbygoal',
+    'desires',
+    'influencedby',
     'usedfor',
+    'receivesaction',
     'capableof',
     'distinctfrom',
+    'notdesires',
+    'nothasproperty',
+    'notcapableof',
+    ]
+
+merged_relations = [
+    'forwardassociated',
+    'bidirectionalassociated',
+    'isa',
+    'hasproperty',
+    'madeof',
+    'partof',
+    'definedas',
+    'instanceof',
+    'hasa',
+    'createdby',
+    'language',
+    'capital',
+    'field',
+    'genre',
+    'genus',
+    'leader',
+    'occupation',
+    'product',
+    'atlocation',
+    'locatednear',
+    'hascontext',
+    'similarto',
+    'symbolof',
+    'knownfor',
+    'hassubevent',
+    'hasfirstsubevent',
+    'haslastsubevent',
+    'hasprerequisite',
+    'entails',
+    'mannerof',
+    'causes',
+    'causesdesire',
+    'motivatedbygoal',
+    'desires',
+    'influencedby',
+    'usedfor',
+    'receivesaction',
+    'capableof',
+    'distinctfrom',
+    'notdesires',
+    'nothasproperty',
+    'notcapableof',
 ]
 
 ###-----------
@@ -123,52 +193,46 @@ def extract_english(conceptnet_path, output_csv_path, output_vocab_path):
     print()
 
 
+def merge_vocab(swow_vocab_path, cpnet_vocab_path):
+    new_vocab = []
+    with open(cpnet_vocab_path, "r", encoding="utf8") as fin, open(swow_vocab_path, "r", encoding="utf8") as fins:
+        concepts_vocab = [w.strip() for w in fin]
+        concepts_seen = set(concepts_vocab )
 
-def extract_english_all_relations(conceptnet_path):
-    """
-    Reads original conceptnet csv file and extracts all English relations (head and tail are both English entities) into
-    a new file, with the following format for each line: <relation> <head> <tail> <weight>.
-    :return:
-    """
-    print('extracting English concepts and relations from ConceptNet...')
-    relation_mapping={}
-    num_lines = sum(1 for line in open(conceptnet_path, 'r', encoding='utf-8'))
-    cpnet_vocab = []
-    concepts_seen = set()
-    with open(conceptnet_path, 'r', encoding="utf8") as fin:
-        for line in tqdm(fin, total=num_lines):
-            toks = line.strip().split('\t')
-            if toks[2].startswith('/c/en/') and toks[3].startswith('/c/en/'):
-                """
-                Some preprocessing:
-                    - Remove part-of-speech encoding.
-                    - Split("/")[-1] to trim the "/c/en/" and just get the entity name, convert all to 
-                    - Lowercase for uniformity.
-                """
-                rel = toks[1].split("/")[-1].lower()
-                head = del_pos(toks[2]).split("/")[-1].lower()
-                tail = del_pos(toks[3]).split("/")[-1].lower()
+        concepts_vocab_swow = [w.strip() for w in fins]
+        for w in concepts_vocab_swow:
+            if w not in concepts_seen:
+                concepts_seen.add(w)
+                new_vocab.append(w)
 
-                if not head.replace("_", "").replace("-", "").isalpha():
-                    continue
-                if not tail.replace("_", "").replace("-", "").isalpha():
-                    continue
-                if rel not in relation_mapping:
-                    relation_mapping[rel]=rel
+    with open(cpnet_vocab_path, "a+", encoding="utf8") as fout:
+        for word in new_vocab:
+            fout.write(word + '\n')
+    print("write {} new concepts ".format(len(new_vocab)))
 
-                data = json.loads(toks[4])
+def merge_csv(swow_csv_path, cpnet_csv_path, output_csv_path):
+    count_new=0
+    graph = nx.MultiDiGraph()
 
-                for w in [head, tail]:
-                    if w not in concepts_seen:
-                        concepts_seen.add(w)
-                        cpnet_vocab.append(w)
+    fo =  open(output_csv_path, "w")
+    for line in tqdm(open(cpnet_csv_path, "r").readlines(), desc="Loading CN"):
+        rel, subj, obj, weight = line.strip().split("\t")
+        graph.add_edge(subj, obj, rel=rel, weight=weight)
+        graph.add_edge(obj, subj, rel="_"+rel, weight=weight)
+        fo.write(line)
 
-    print("relation types: {}".format(len(relation_mapping.keys())))
-    print(relation_mapping.keys())
-    print()
-    return set(relation_mapping.keys())
+    with open (swow_csv_path, "r") as fs:
+        for line in tqdm(fs.readlines(), desc="Merging"):
+            rel, subj, obj, weight = line.strip().split("\t")
+            if graph.has_node(subj) and graph.has_node(obj):
+                if graph.has_edge(subj, obj) is False: 
+                    count_new += 1
+                    fo.write(line)
+            else:
+                count_new += 1
+                fo.write(line)
 
-
+    print("Write {} new triples from SWOW".format(count_new))
 
 def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_graph_path, output_ent_path, output_rel_path,prune=True):
     print('generating ConceptNet graph file...')
@@ -251,30 +315,6 @@ def construct_graph(cpnet_csv_path, cpnet_vocab_path, output_graph_path, output_
     print("Finish")
 
 
-
-def main():
-    print("Generating CN7rel graph ...")
-    data_dir='data/cpnet7rel/'
-    check_path(data_dir)
-    # conceptnet_path = os.path.join(data_dir, 'conceptnet-assertions-5.5.0.csv')
-    conceptnet_path = '/home/chunhua/Commonsense/MHGRN/data/cpnet/conceptnet-assertions-5.6.0.csv' 
-    output_csv_path  =  os.path.join(data_dir, 'conceptnet.en.csv')
-    output_vocab_path = os.path.join(data_dir, 'concept.txt')
-    output_graph_path = os.path.join(data_dir, 'graph.nx')
-
-    output_ent_path = os.path.join(data_dir, 'entity_vocab.pkl')
-    output_rel_path = os.path.join(data_dir, 'relation_vocab.pkl')
-
-
-    extract_english(conceptnet_path, output_csv_path, output_vocab_path)
-    construct_graph(output_csv_path, output_vocab_path, output_graph_path, output_ent_path, output_rel_path, prune=False)
-    # construct_graph(output_csv_path, output_vocab_path, output_graph_path, output_ent_path, output_rel_path, prune=True)
-
-    i2r, r2i, i2e, e2i = load_vocab(data_dir)
-    print(i2r)
-    print(r2i)
-
-
 def check_relation_types():
     '''
     check whether relation groups equal to the original reported (Wang, 2020) 
@@ -296,9 +336,43 @@ def check_relation_types():
     print(i2r_old)
     print(r2i_old)
 
-    assert set(relation_mapping.keys()) == set(i2r_old[:40]) 
-    print("relation types before merging are the same as (Wang, 2020)")
+    # assert set(relation_mapping.keys()) == set(i2r_old[:40]) 
+    # print("relation types before merging are the same as (Wang, 2020)")
     print("double check finished!")
+
+
+
+def main():
+    print("Generating the merged CN40rel and SW2rel graph ...")
+    data_dir='data/cpnet_swow/'
+    check_path(data_dir)
+    # conceptnet_path = os.path.join(data_dir, 'conceptnet-assertions-5.5.0.csv')
+    conceptnet_path = '/home/chunhua/Commonsense/MHGRN/data/cpnet/conceptnet-assertions-5.6.0.csv' 
+    swow_vocab_path = './data/swow/concept.txt'
+    swow_csv_path = './data/swow/swow.en.csv'
+
+    # conceptnet_csv_path  =  os.path.join(data_dir, 'conceptnet_only.en.csv')
+    output_csv_path  =  os.path.join(data_dir, 'conceptnet.en.csv')
+    output_vocab_path = os.path.join(data_dir, 'concept.txt')
+    output_graph_path = os.path.join(data_dir, 'graph.nx')
+
+    output_ent_path = os.path.join(data_dir, 'entity_vocab.pkl')
+    output_rel_path = os.path.join(data_dir, 'relation_vocab.pkl')
+
+    # extract_english(conceptnet_path, output_csv_path, output_vocab_path)
+    # merge_vocab(swow_vocab_path, output_vocab_path)
+
+    merge_csv_path  =  os.path.join(data_dir, 'conceptnet.swow.en.csv')
+    merge_csv(swow_csv_path, output_csv_path, merge_csv_path)
+
+    construct_graph(merge_csv_path, output_vocab_path, output_graph_path, output_ent_path, output_rel_path, prune=False)
+    # construct_graph(output_csv_path, output_vocab_path, output_graph_path, output_ent_path, output_rel_path, prune=True)
+
+    i2r, r2i, i2e, e2i = load_vocab(data_dir)
+    print(i2r)
+    print(r2i)
+
+
     
 
 if __name__=='__main__':

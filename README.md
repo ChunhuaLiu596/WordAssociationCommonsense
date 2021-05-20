@@ -55,6 +55,24 @@ cd data
 unzip conceptnet.zip
 cd ..
 python sample_path_rw.py
+
+python sample_path_rw.py --data_dir data/conceptnet/ --output_dir data/sample_path_conceptnet
+python sample_path_rw.py --data_dir data/cpnet_base/ --output_dir data/sample_path_cpnet_base
+python sample_path_rw.py --data_dir data/swow/ --output_dir data/sample_path_swow
+```
+
+After path sampling, shuffle the resulting data './data/sample_path/sample_path.txt'
+and then split them into train.txt, dev.txt and test.txt by ratio of 0.9:0.05:0.05 under './data/sample_path/'
+```bash
+bash split_path_files data/sample_path_conceptnet
+bash split_path_files data/sample_path_swow
+```
+
+Then you can start to train the path generator by running
+```bash
+# the first arg is for specifying which gpu to use
+./run.sh $gpu_device
+```
 ```
 
 After path sampling, shuffle the resulting data './data/sample_path/sample_path.txt'
