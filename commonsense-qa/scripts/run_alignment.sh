@@ -23,11 +23,11 @@ if [[ ${debug} == "true" ]]; then
     swow_filter_file='./data/swow/3rel_freq1/swow_3rel_freq1.en.csv.debug'
     output_folder=./data/alignment/C_S
 else
-    conceptnet_source_file='./data/analysis/cpnet47rel/conceptnet.en.csv'
-    swow_filter_file='./data/analysis/swow/conceptnet.en.csv'
+    conceptnet_source_file='./data/cpnet/conceptnet.en.csv'
+    swow_filter_file='./data/swow/conceptnet.en.csv'
     # conceptnet_overlap_file='./data/analysis/overlap_cn.en.csv'
     union_file='./data/analysis/cpnet47rel_swow2rel/conceptnet.en.csv'
-    output_folder=./data/analysis
+    output_folder=./data/analysis/cpsw_inter/
 fi
 
 if [ ! -d "$output_folder" ]; then
@@ -72,7 +72,7 @@ python3.6 utils/kgsrc/ground.py \
     --match_mode total_soft\
     --align_dir $out_dir\
     --write_ground_triples\
-    --output_csv_path_cn "$out_dir/overlap_cn.en.csv"\
+    --output_csv_path_cn "$out_dir/conceptnet.en.csv"\
     --output_csv_path_sw "$out_dir/overlap_sw.en.csv"\
     --swap_retrieval\
     # --add_isphrase_rel

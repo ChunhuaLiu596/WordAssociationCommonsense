@@ -49,13 +49,13 @@ class PreprocessData_Ground(object):
                 ac_list = obj['ac']
                 choice_context = []
 
-                sample_qc_num = min(len(qc_list), 6)
+                sample_qc_num = min(len(qc_list), 6) #why 6?
                 sample_ac_num = min(len(ac_list), 6)
                 sample_qc_list = random.sample(qc_list, sample_qc_num)
                 sample_ac_list = random.sample(ac_list, sample_ac_num)
                 for qc in sample_qc_list:
                     qc = qc.replace('_', ' ')
-                    for ac in sample_ac_list:
+                    for ac in sample_ac_list:# posy: different from csqa
                         ac = ac.replace('_', ' ')
                         context = ac + '<SEP>' + qc
                         context = self.tokenizer.encode(context, add_special_tokens=False)[:self.context_len]
@@ -63,7 +63,7 @@ class PreprocessData_Ground(object):
 
                         choice_context.append(context)
                 num_context = len(choice_context)
-                for _ in range(36 - num_context):
+                for _ in range(36 - num_context): #posy: 36 means 6*6 in sample_qc_num*sample_ac_num? 
                     _input = [self.PAD] * self.context_len 
                     choice_context.append(_input)
                 question_context.append(choice_context)

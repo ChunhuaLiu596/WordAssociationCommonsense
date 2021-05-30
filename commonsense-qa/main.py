@@ -12,6 +12,8 @@ from utils.optimization_utils import OPTIMIZER_CLASSES
 from utils.parser_utils import *
 from utils.relpath_utils import *
 from utils.datasets import *
+import warnings 
+warnings.filterwarnings("ignore")
 
 def get_node_feature_encoder(encoder_name):
     return encoder_name.replace('-cased', '-uncased')
@@ -134,18 +136,12 @@ def main():
         parser.set_defaults(loss='margin_rank')
     args = parser.parse_args()
 
-<<<<<<< HEAD
     if args.kg_model !='None':
         merged_relations = get_merged_relations(args.kg_name)
         args.relation_types = len(merged_relations)
 
-=======
-    merged_relations = get_merged_relations(args.kg_name)
-    args.relation_types = len(merged_relations)
-    if args.kg_model is not None:
->>>>>>> bac85f0821d25db42be5e91c4fa70fbcf4672378
-        find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache, merged_relations )
         find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.dev_concepts, args.dev_rel_paths, args.nprocs, args.use_cache, merged_relations )
+        find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache, merged_relations )
         if args.test_statements is not None:
             find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.test_concepts, args.test_rel_paths, args.nprocs, args.use_cache, merged_relations )
     
@@ -161,7 +157,6 @@ def main():
 
 def train(args):
     print(args)
-
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -253,14 +248,14 @@ def train(args):
                        concept_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim), concept_in_dim=concept_dim, freeze_ent_emb=args.freeze_ent_emb,
                        pretrained_concept_emb=cp_emb, hidden_dim=args.decoder_hidden_dim, dropout=args.dropoutm, ablation=args.ablation, encoder_config=lstm_config, lm_sent_pool=args.lm_sent_pool)
     else:
-        model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, concept_num=concept_num, concept_dim=relation_dim,
-                          relation_num=relation_num, relation_dim=relation_dim,
-                          concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
-                          hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, num_attention_heads=args.att_head_num,
-                          fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
-                          pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb,
-                          init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
-                          emb_scale=args.emb_scale, encoder_config=lstm_config, kg_model=args.kg_model, lm_sent_pool=args.lm_sent_pool)
+        model = LMRelationNet(model_name=args.encoder, from_checkpoint=args.from_checkpoint, 
+                            concept_num=concept_num, concept_dim=relation_dim, relation_num=relation_num, relation_dim=relation_dim, concept_in_dim=(dataset.get_node_feature_dim() if use_contextualized else concept_dim),
+                            hidden_size=args.mlp_dim, num_hidden_layers=args.mlp_layer_num, 
+                            num_attention_heads=args.att_head_num,
+                            fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
+                            pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, 
+                            freeze_ent_emb=args.freeze_ent_emb, init_range=args.init_range, 
+                            ablation=args.ablation, use_contextualized=use_contextualized, emb_scale=args.emb_scale, encoder_config=lstm_config, kg_model=args.kg_model, lm_sent_pool=args.lm_sent_pool)
 
     try:
         model.to(device)
@@ -332,7 +327,10 @@ def train(args):
             bs = labels.size(0)
             for a in range(0, bs, args.mini_batch_size):
                 b = min(a + args.mini_batch_size, bs)
+                # print("labels:", labels[a:b])
                 logits, _ = model(*[x[a:b] for x in input_data], layer_id=args.encoder_layer)
+                # print("logits:", logits)
+                # print(" ")
 
                 if args.loss == 'margin_rank':
                     num_choice = logits.size(1)
@@ -418,13 +416,8 @@ def pred(args):
     # path_embedding_path = os.path.join('./path_embeddings/', args.dataset, 'path_embedding.pickle')
     if args.kg_model=='None':
         dataset = LMDataLoader(train_statement_path=args.train_statements, 
-<<<<<<< HEAD
                                dev_statement_path=args.dev_statements,
                                test_statement_path=args.test_statements, 
-=======
-                               train_concept_jsonl=args.train_concepts, 
-                               dev_statement_path=args.dev_statements,
->>>>>>> bac85f0821d25db42be5e91c4fa70fbcf4672378
                                 batch_size=args.batch_size, 
                                 eval_batch_size=args.eval_batch_size,
                                 device=device, model_name=args.encoder, 

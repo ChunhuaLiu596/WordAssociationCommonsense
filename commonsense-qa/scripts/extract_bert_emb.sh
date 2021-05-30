@@ -25,12 +25,12 @@
 # 
 
 ### cpnet
-# python utils/extract_bert_embeddings.py --cpnet_vocab_path data/cpnet/concept.txt\
-  # --output_path data/cpnet/\
-  # --model_name 'roberta-large'\
-  # --max_seq_length 32\
-  # --device 0\
-  # --batch_size 32
+python utils/extract_bert_embeddings.py --cpnet_vocab_path data/cpnet/concept.txt\
+  --output_path data/cpnet/\
+  --model_name 'roberta-large'\
+  --max_seq_length 32\
+  --device 5\
+  --batch_size 32
 
 # python utils/extract_bert_embeddings.py --cpnet_vocab_path data/cpnet/concept.txt\
 #   --output_path data/cpnet/\
@@ -108,13 +108,13 @@
 
 # kg_names=('swow' 'swow1rel')
 # kg_names=('cpnet_swow')
-kg_names=('cpnet47rel')
-model_name=('roberta-large')
-for kg_name in ${kg_names[@]}; do
-  python utils/extract_bert_embeddings.py --cpnet_vocab_path data/${kg_name}/concept.txt\
-    --output_path data/${kg_name}/\
-    --model_name $model_name\
-    --max_seq_length 32\
-    --device 0\
-    --batch_size 32
-done
+# kg_names=('cpnet47rel')
+# model_name=('roberta-large')
+# for kg_name in ${kg_names[@]}; do
+#   python utils/extract_bert_embeddings.py --cpnet_vocab_path data/${kg_name}/concept.txt\
+#     --output_path data/${kg_name}/\
+#     --model_name $model_name\
+#     --max_seq_length 32\
+#     --device 0\
+#     --batch_size 32
+# done

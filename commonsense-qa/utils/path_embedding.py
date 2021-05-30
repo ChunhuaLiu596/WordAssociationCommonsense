@@ -13,6 +13,7 @@ import pickle
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler
+from .utils import check_path
 
 def _get_path_embedding_greedy(dataset, generator, args, tokenizer=None, output_file=None):
     data_sampler = SequentialSampler(dataset)
@@ -43,6 +44,7 @@ def _get_path_embedding_greedy(dataset, generator, args, tokenizer=None, output_
     return path_embeddings
 
 def save_path_embedding(datahelper, generator, save_file, args):
+    check_path(save_file)
     path_embeddings_dict = {}
     path_embeddings_dict['train'] = _get_path_embedding_greedy(datahelper.trainset, generator, args)
     path_embeddings_dict['dev'] = _get_path_embedding_greedy(datahelper.devset, generator, args)

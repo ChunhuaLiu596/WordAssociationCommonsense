@@ -22,8 +22,10 @@ class DataHelper(object):
             from .preprocess_csqa import PreprocessData_Ground
         elif 'obqa' in args.data_dir:
             from .preprocess_obqa import PreprocessData_Ground
+        elif 'mcscript' in args.data_dir:
+            from .preprocess_mcscript import PreprocessData_Ground
 
-        preprocesser = PreprocessData_Ground(args.data_dir, args.generator_type, args.context_len)
+        preprocesser = PreprocessData_Ground(args.data_dir, args.kg_name, args.generator_type, args.context_len)
  
         self.PAD = preprocesser.PAD
         self.gpt_tokenizer = preprocesser.tokenizer

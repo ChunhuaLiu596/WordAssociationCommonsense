@@ -14,6 +14,7 @@ source $1
 kg_name_out=$2
 kg_model_out=$3
 dynamic_kg=$4
+gpu_device=$5
 RANDOM=$$
 
 if [[ ${kg_name_out} =~ ^("swow"|"swow1rel")$ ]]; then
@@ -83,7 +84,6 @@ for ((i=0; i<${n_runs}; i++));do
 	mkdir -p ${save_dir}
 
 	echo ${save_dir}/train.log 	
- 
 	python -u main.py \
 		--dataset $dataset \
 		--inhouse $inhouse \
@@ -117,7 +117,9 @@ for ((i=0; i<${n_runs}; i++));do
 		--encoder_dropouth $encoder_dropouth\
 		--encoder_layer_num $encoder_layer_num\
 		--max_epochs_before_stop $max_epochs_before_stop\
-		--encoder_type $encoder_type\ 
+		--encoder_type $encoder_type\
+		--fc_dim $fc_dim\
+		--mlp_dim $mlp_dim\
 		# > ${save_dir}/train.log
 	 
 done

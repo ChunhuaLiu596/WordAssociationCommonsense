@@ -3,7 +3,7 @@ import os
 import time
 import random
 import numpy as np 
-import logging
+
 import sys
 import json
 import math
@@ -12,8 +12,11 @@ from tqdm import tqdm, trange
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
+import transformers
 from transformers import *
+import logging
+logger = logging.getLogger()
 
 from utils.data_helper import DataHelper
 from utils.path_embedding import save_path_embedding
@@ -25,7 +28,7 @@ torch.set_num_threads(4)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-logger = logging.getLogger()
+assert transformers.__version__ == '2.8.0'
 
 def run_generating(args):
 

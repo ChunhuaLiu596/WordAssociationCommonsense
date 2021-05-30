@@ -137,8 +137,40 @@ def ground_qa_pair(qa_pair):
     answer_concepts = sorted(list(answer_concepts))
     return {"sent": s, "ans": a, "qc": question_concepts, "ac": answer_concepts}
 
+def ground_pqa_pair(pqa_pair):
+    global nlp, matcher
+    # print('load matcher')
+    if nlp is None or matcher is None:
+        nlp = spacy.load('en_core_web_sm', disable=['ner', 'parser', 'textcat'])
+        # nlp.add_pipe("sentencizer")
+        matcher = load_matcher(nlp, PATTERN_PATH)
 
-def ground_mentioned_concepts(nlp, matcher, s, ans=None):
+    p, s, a = pqa_pair
+    # print('ground all concept')
+    question_concepts = ground_mentioned_concepts(nlp, matcher, s, a)
+    answer_concepts = ground_mentioned_concepts(nlp, matcher, a)
+    question_concepts = question_concepts - answer_concepts
+    para_concepts = ground_mentioned_concepts(nlp, matcher, p, ans=None, only_exact_match=True) 
+
+    # print('hard ground q')
+    if len(question_concepts) == 0:
+        question_concepts = hard_ground(nlp, s, CPNET_VOCAB)  # not very possible
+
+    # print('hard ground a')
+    if len(answer_concepts) == 0:
+        answer_concepts = hard_ground(nlp, a, CPNET_VOCAB)  # some case
+
+    # question_concepts = question_concepts -  answer_concepts
+    para_concepts = sorted(list(para_concepts))
+    question_concepts = sorted(list(question_concepts))
+    answer_concepts = sorted(list(answer_concepts))
+
+    example = {"para": p, "sent": s, "ans": a, "qc": question_concepts, "ac": answer_concepts, "pc": para_concepts}
+    # print(example)
+    return  example
+
+
+def ground_mentioned_concepts(nlp, matcher, s, ans=None, only_exact_match=False):
 
     s = s.lower()
     doc = nlp(s)
@@ -151,7 +183,6 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
     if ans is not None:
         ans_matcher = Matcher(nlp.vocab)
         ans_words = nlp(ans)
-        # print(ans_words)
         ans_matcher.add(ans, None, [{'TEXT': token.text.lower()} for token in ans_words])
 
         ans_match = ans_matcher(doc)
@@ -168,8 +199,7 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
         span = doc[start:end].text  # the matched span
 
         # a word that appears in answer is not considered as a mention in the question
-        # if len(set(span.split(" ")).intersection(set(ans.split(" ")))) > 0:
-        #     continue
+       
         original_concept = nlp.vocab.strings[match_id]
         original_concept_set = set()
         original_concept_set.add(original_concept)
@@ -178,13 +208,12 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
         # print("concept", original_concept)
         # print("Matched '" + span + "' to the rule '" + string_id)
 
-        # why do you lemmatize a mention whose len == 1?
-
-        if len(original_concept.split("_")) == 1:
+        # why do you lemmatize a mention whose len == 1? 
+        # posy : remove this: "hard-drive" will introduce "hard_-_drive"
+        # if len(original_concept.split("_")) == 1:
             # tag = doc[start].tag_
             # if tag in ['VBN', 'VBG']:
-
-            original_concept_set.update(lemmatize(nlp, nlp.vocab.strings[match_id]))
+            # original_concept_set.update(lemmatize(nlp, nlp.vocab.strings[match_id]))
 
         if span not in span_to_concepts:
             span_to_concepts[span] = set()
@@ -194,14 +223,15 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
     # print('ground step 2')
     for span, concepts in span_to_concepts.items():
         concepts_sorted = list(concepts)
+        concepts_sorted.sort(key=len)
         # print("span:")
         # print(span)
         # print("concept_sorted:")
         # print(concepts_sorted)
-        concepts_sorted.sort(key=len)
 
         # mentioned_concepts.update(concepts_sorted[0:2])
 
+        # if not only_exact_match:
         shortest = concepts_sorted[0:3]
 
         for c in shortest:
@@ -216,11 +246,12 @@ def ground_mentioned_concepts(nlp, matcher, s, ans=None):
             else:
                 mentioned_concepts.add(c)
 
+            # print(f'span:{span}, c: {c}')
+        # print(f"mentioned_concepts: {mentioned_concepts}") 
+        # print(f"intersect: {intersect}") 
         # if a mention exactly matches with a concept
-
         exact_match = set([concept for concept in concepts_sorted if concept.replace("_", " ").lower() == span.lower()])
-        # print("exact match:")
-        # print(exact_match)
+        # print(f"exact match: {exact_match}")
         # print('assert len exact match')
         assert len(exact_match) < 2
         mentioned_concepts.update(exact_match)
@@ -246,10 +277,14 @@ def hard_ground(nlp, sent, cpnet_vocab):
     return res
 
 
-def match_mentioned_concepts(sents, answers, num_processes):
+def match_mentioned_concepts(sents, answers, paras, num_processes):
     res = []
     with Pool(num_processes) as p:
-        res = list(tqdm(p.imap(ground_qa_pair, zip(sents, answers)), total=len(sents)))
+        if paras is None:
+            res = list(tqdm(p.imap(ground_qa_pair, zip(sents, answers)), total=len(sents)))
+        else:
+            res = list(tqdm(p.imap(ground_pqa_pair, zip(paras, sents, answers)), total=len(sents)))
+    
     return res
 
 
@@ -318,6 +353,7 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
 
     sents = []
     answers = []
+    paras = []
     print('load statement')
     with open(statement_path, 'r') as fin:
         lines = [line for line in fin]
@@ -332,6 +368,7 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
         j = json.loads(line)
         for statement in j["statements"]:
             sents.append(statement["statement"])
+
         for answer in j["question"]["choices"]:
             ans = answer['text']
             # ans = " ".join(answer['text'].split("_"))
@@ -341,9 +378,14 @@ def ground(statement_path, cpnet_vocab_path, pattern_path, output_path, num_proc
             except Exception:
                 print(ans)
             answers.append(ans)
+            if 'para' in j:
+                paras.append(j['para'])
+
+    if len(paras)==0:
+        paras=None 
 
     print('match mention concept')
-    res = match_mentioned_concepts(sents, answers, num_processes)
+    res = match_mentioned_concepts(sents, answers, paras, num_processes)
     print('prune')
     res = prune(res, cpnet_vocab_path)
 

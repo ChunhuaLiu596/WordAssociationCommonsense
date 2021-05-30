@@ -590,6 +590,9 @@ class CustomizedEmbedding(nn.Module):
                 freeze_net(self.emb)
 
         if concept_in_dim != concept_out_dim:
+            # print(f"concept_in_dim: {concept_in_dim }")
+            # print(f"concept_out_dim: {concept_out_dim }")
+            # note: for Linear the in and out dim are reverse, self.weight = Parameter(torch.Tensor(out_features, in_features))
             self.cpt_transform = nn.Linear(concept_in_dim, concept_out_dim)
             self.activation = GELU()
 
@@ -598,19 +601,21 @@ class CustomizedEmbedding(nn.Module):
         index: size (bz, a)
         contextualized_emb: size (bz, b, emb_size) (optional)
         """
-        if contextualized_emb is not None:
-            assert index.size(0) == contextualized_emb.size(0)
-            if hasattr(self, 'cpt_transform'):
-                contextualized_emb = self.activation(self.cpt_transform(contextualized_emb * self.scale))
-            else:
-                contextualized_emb = contextualized_emb * self.scale
-            emb_dim = contextualized_emb.size(-1)
-            return contextualized_emb.gather(1, index.unsqueeze(-1).expand(-1, -1, emb_dim))
+        # if contextualized_emb is not None:
+        #     assert index.size(0) == contextualized_emb.size(0)
+        #     if hasattr(self, 'cpt_transform'):
+        #         contextualized_emb = self.activation(self.cpt_transform(contextualized_emb * self.scale))
+        #     else:
+        #         contextualized_emb = contextualized_emb * self.scale
+        #     emb_dim = contextualized_emb.size(-1)
+        #     return contextualized_emb.gather(1, index.unsqueeze(-1).expand(-1, -1, emb_dim))
+        # else:
+        if hasattr(self, 'cpt_transform'):
+            # print("YES cpt_transform")
+            return self.activation(self.cpt_transform(self.emb(index) * self.scale))
         else:
-            if hasattr(self, 'cpt_transform'):
-                return self.activation(self.cpt_transform(self.emb(index) * self.scale))
-            else:
-                return self.emb(index) * self.scale
+            # print("NO cpt_transform")
+            return self.emb(index) * self.scale
 
 
 def run_test():

@@ -9,10 +9,10 @@ from transformers import *
 
 class PreprocessData_Ground(object):
     """docstring for PreprocessData"""
-    def __init__(self, data_name, gpt_tokenizer_type, context_len):
+    def __init__(self, data_name, kg_name, gpt_tokenizer_type, context_len):
         super(PreprocessData_Ground, self).__init__()
         self.tokenizer = GPT2Tokenizer.from_pretrained(gpt_tokenizer_type, cache_dir='../cache/')
-        data_dir = os.path.join('./data', data_name)
+        data_dir = os.path.join('./data', data_name, kg_name)
         self.ground_path = os.path.join(data_dir, 'ground_token_context{}_{}.pkl'.format(context_len, gpt_tokenizer_type))
         self.context_len = context_len
 
@@ -49,22 +49,25 @@ class PreprocessData_Ground(object):
                 ac_list = obj['ac']
                 choice_context = []
 
-                choice = obj['ans'].replace('_', ' ')
-
-                for qc in qc_list[:5]: #posy: only the 5 concepts from question? why?
+                sample_qc_num = min(len(qc_list), 6)
+                sample_ac_num = min(len(ac_list), 6)
+                sample_qc_list = random.sample(qc_list, sample_qc_num)
+                sample_ac_list = random.sample(ac_list, sample_ac_num)
+                for qc in sample_qc_list:
                     qc = qc.replace('_', ' ')
+                    for ac in sample_ac_list:
+                        ac = ac.replace('_', ' ')
+                        context = ac + '<SEP>' + qc
+                        context = self.tokenizer.encode(context, add_special_tokens=False)[:self.context_len]
+                        context += [self.PAD] * (self.context_len - len(context))
 
-                    context = choice + '<SEP>' + qc
-                    context = self.tokenizer.encode(context, add_special_tokens=False)[:self.context_len]
-                    context += [self.PAD] * (self.context_len - len(context))
-
-                    choice_context.append(context)
+                        choice_context.append(context)
                 num_context = len(choice_context)
-                for _ in range(5 - num_context): #posy:padding?
-                    _input = [self.PAD] * self.context_len
+                for _ in range(36 - num_context):
+                    _input = [self.PAD] * self.context_len 
                     choice_context.append(_input)
                 question_context.append(choice_context)
-                if (_id + 1) % 5 == 0:
+                if (_id + 1) % 2 == 0:
                     data_context.append(question_context)
                     question_context = []
         data_context = torch.tensor(data_context, dtype=torch.long)

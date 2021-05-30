@@ -3,7 +3,7 @@ import dgl
 import numpy as np
 import torch
 from transformers import (OpenAIGPTTokenizer, BertTokenizer, XLNetTokenizer, RobertaTokenizer, AlbertTokenizer)
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+# from transformers import AutoTokenizer, AutoModelForMaskedLM
 
 try:
     from utils.tokenization_utils import *
@@ -248,10 +248,18 @@ def load_2hop_relational_paths(rpath_jsonl_path, cpt_jsonl_path=None, emb_pk_pat
     rel_data = torch.zeros((n_samples, max_tuple_num), dtype=torch.long)
     num_tuples = torch.zeros((n_samples,), dtype=torch.long)
 
-    all_masks = []
+    pa_data = torch.zeros((n_samples, max_tuple_num, 2), dtype=torch.long)
+    rel_data_pa = torch.zeros((n_samples, max_tuple_num), dtype=torch.long)
+    num_tuples_pa = torch.zeros((n_samples,), dtype=torch.long)
+
+
     for i, data  in enumerate(tqdm(rpath_data, total=n_samples, desc='loading QA pairs')):
+        
         cur_qa = []
+        cur_pa = []
         cur_rel = []
+        cur_rel_pa = []
+        # loda qa data
         for dic in data['paths']:
             if len(dic['rel']) == 1:
                 cur_qa.append([dic['qc'], dic['ac']])
@@ -265,24 +273,47 @@ def load_2hop_relational_paths(rpath_jsonl_path, cpt_jsonl_path=None, emb_pk_pat
                 break
         assert len(cur_qa) == len(cur_rel)
 
+        # loda pa data
+        for dic in data['paths_pa']:
+            if len(dic['rel']) == 1:
+                cur_pa.append([dic['qc'], dic['ac']])
+                cur_rel_pa.append(dic['rel'][0])
+            elif len(dic['rel']) == 2:
+                cur_pa.append([dic['qc'], dic['ac']])
+                cur_rel_pa.append(relation_types*2 + dic['rel'][0] * relation_types*2 + dic['rel'][1])
+            else:
+                raise ValueError('Invalid path length')
+            if len(cur_pa) >= max_tuple_num:
+                break
+        assert len(cur_pa) == len(cur_rel_pa)
+
         if len(cur_qa) > 0:
             qa_data[i][:len(cur_qa)] = torch.tensor(cur_qa)
             rel_data[i][:len(cur_rel)] = torch.tensor(cur_rel)
             num_tuples[i] = (len(cur_qa) + len(cur_rel)) // 2  # code style suggested by kiwisher
+
+        if len(cur_pa) > 0:
+            pa_data[i][:len(cur_pa)] = torch.tensor(cur_pa)
+            rel_data_pa[i][:len(cur_rel_pa)] = torch.tensor(cur_rel_pa)
+            num_tuples_pa[i] = (len(cur_pa) + len(cur_rel_pa)) // 2  # code style suggested by kiwisher
 
     if num_choice is not None:
         qa_data = qa_data.view(-1, num_choice, max_tuple_num, 2)
         rel_data = rel_data.view(-1, num_choice, max_tuple_num)
         num_tuples = num_tuples.view(-1, num_choice)
 
+        pa_data = pa_data.view(-1, num_choice, max_tuple_num, 2)
+        rel_data_pa = rel_data_pa.view(-1, num_choice, max_tuple_num)
+        num_tuples_pa = num_tuples_pa.view(-1, num_choice)
+
     flat_rel_data = rel_data.view(-1, max_tuple_num)
     flat_num_tuples = num_tuples.view(-1)
     valid_mask = (torch.arange(max_tuple_num) < flat_num_tuples.unsqueeze(-1)).float()
     n_1hop_paths = ((flat_rel_data < relation_types*2).float() * valid_mask).sum(1)
     n_2hop_paths = ((flat_rel_data >= relation_types*2).float() * valid_mask).sum(1)
-    print('| #paths: {} | average #1-hop paths: {} | average #2-hop paths: {} | #w/ 1-hop {} | #w/ 2-hop {} |'.format(flat_num_tuples.float().mean(0), n_1hop_paths.mean(), n_2hop_paths.mean(),
-                                                                                                                      (n_1hop_paths > 0).float().mean(), (n_2hop_paths > 0).float().mean()))
-    return (qa_data, rel_data, num_tuples)
+
+    print('| #paths: {} | average #1-hop paths: {} | average #2-hop paths: {} | #w/ 1-hop {} | #w/ 2-hop {} |'.format(flat_num_tuples.float().mean(0), n_1hop_paths.mean(), n_2hop_paths.mean(), (n_1hop_paths > 0).float().mean(), (n_2hop_paths > 0).float().mean()))
+    return (qa_data, rel_data, num_tuples, pa_data, rel_data_pa, num_tuples_pa)
 
 
 
@@ -708,6 +739,9 @@ def load_bert_xlnet_roberta_input_tensors(statement_jsonl_path, model_type, mode
     "http": "http://10.10.1.10:3128",
     "https": "https://10.10.1.10:1080",
     }
+    cache_dir = f'../cache/{model_name}/'
+    tokenizer = tokenizer_class.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
+        
     # if model_name in ('bert-large-uncased','bert-base-uncased'):
         # cache_dir = f'../cache/{model_name}/'
         # tokenizer = BertTokenizer.from_pretrained(cache_dir, do_lower_case=True, proxies=proxies)
@@ -715,7 +749,7 @@ def load_bert_xlnet_roberta_input_tensors(statement_jsonl_path, model_type, mode
         # tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir='../cache/', proxies=proxies)
     # except:
         # tokenizer = tokenizer_class.from_pretrained(model_name, cache_dir=f'../cache/{model_name}', proxies=proxies)
-    tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=f'../cache/')
+    # tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=f'../cache/')
 
     examples = read_examples(statement_jsonl_path)
     features = convert_examples_to_features(examples, list(range(len(examples[0].endings))), max_seq_length, tokenizer,

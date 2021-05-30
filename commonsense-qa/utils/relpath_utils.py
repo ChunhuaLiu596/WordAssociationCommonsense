@@ -33,7 +33,7 @@ def get_rel_paths(path):
         raise ValueError('Invalid path length')
 
 
-def find_paths_qa_concept_pair(source: str, target: str, ifprint=False):
+def find_paths_qa_concept_pair(source: str, target: str, n_hops=2, ifprint=False):
     """
     find paths for a (question concept, answer concept) pair
     source and target is text
@@ -47,7 +47,7 @@ def find_paths_qa_concept_pair(source: str, target: str, ifprint=False):
         return []
 
     all_path = []
-    for p in nx.all_simple_paths(cpnet_simple, source=s, target=t, cutoff=2): #posy: cutoff=2 means 2hops
+    for p in nx.all_simple_paths(cpnet_simple, source=s, target=t, cutoff=n_hops): #posy: cutoff=2 means 2hops
         if len(p) >= 2:  # skip paths of length 1 #posy: what does len(p)=1 mean? would it return len(p)=1?
             all_path.append(p)
 
@@ -61,14 +61,18 @@ def find_paths_qa_concept_pair(source: str, target: str, ifprint=False):
     return res
 
 
-def find_relational_paths_qa_pair(qa_pair):
-    acs, qcs = qa_pair
-    pfr_qa = {'acs': acs, 'qcs': qcs}
+def find_relational_paths_qap_pair(qap_pair):
+    acs, qcs, pcs = qap_pair
+    pfr_qa = {'acs': acs, 'qcs': qcs, 'pcs':pcs}
     rel_list = []
+    rel_list_pa = []
     for ac in acs:
         for qc in qcs:
-            rel_list += find_paths_qa_concept_pair(qc, ac)
+            rel_list += find_paths_qa_concept_pair(qc, ac, n_hops=1)
+        for pc in pcs:
+            rel_list_pa += find_paths_qa_concept_pair(pc, ac, n_hops=1)
     pfr_qa['paths'] = rel_list
+    pfr_qa['paths_pa'] = rel_list_pa
     return pfr_qa
 
 
@@ -91,6 +95,7 @@ def find_relational_paths(cpnet_vocab_path, cpnet_graph_path, grounded_path, out
     if any(x is None for x in [concept2id, id2concept, relation2id, id2relation]):
         with open(cpnet_vocab_path, 'r', encoding='utf-8') as fin:
             id2concept = [w.strip() for w in fin]
+            print(f"load  {len(id2concept)}  concepts from {cpnet_vocab_path}")
         concept2id = {w: i for i, w in enumerate(id2concept)}
         id2relation = merged_relations.copy()
         id2relation += ['*' + r for r in id2relation]
@@ -100,12 +105,13 @@ def find_relational_paths(cpnet_vocab_path, cpnet_graph_path, grounded_path, out
         cpnet_simple = get_cpnet_simple(cpnet)
 
     with open(grounded_path, 'r') as fin:
+        print(f"find rel path for: {grounded_path}")
         data = [json.loads(line) for line in fin]
-    data = [[item["ac"], item["qc"]] for item in data]
+    data = [[item["ac"], item["qc"], item["pc"]] for item in data]
 
     check_path(output_path)
     with Pool(num_processes) as p, open(output_path, 'w') as fout:
-        for pfr_qa in tqdm(p.imap(find_relational_paths_qa_pair, data), total=len(data), desc='Finding relational paths'):
+        for pfr_qa in tqdm(p.imap(find_relational_paths_qap_pair, data), total=len(data), desc='Finding relational paths'):
             fout.write(json.dumps(pfr_qa) + '\n')
 
     print(f'paths saved to {output_path}')

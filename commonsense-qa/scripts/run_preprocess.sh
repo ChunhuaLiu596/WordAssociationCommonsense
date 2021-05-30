@@ -46,4 +46,5 @@
 
 
 #mcscript
+python preprocess.py swow --run mcscript -p 30
 python preprocess.py cpnet --run mcscript -p 30

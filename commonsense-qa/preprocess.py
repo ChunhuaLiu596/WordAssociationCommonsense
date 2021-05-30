@@ -10,6 +10,10 @@ from utils.grounding import create_matcher_patterns, ground
 from utils.paths import find_paths, score_paths, prune_paths, find_relational_paths_from_paths, generate_path_and_graph_from_adj
 from utils.graph import generate_graph, generate_adj_data_from_grounded_concepts, coo_to_normalized
 from utils.triples import generate_triples_from_adj
+
+import warnings
+warnings.filterwarnings("ignore")
+
 parser = argparse.ArgumentParser()
 parser.add_argument('kg_name', type=str)
 parser.add_argument('--run', default=['common', 'csqa'], choices=['common', 'csqa', 'obqa', 'mcscript','make_word_vocab'], nargs='+')
@@ -257,12 +261,12 @@ def main():
             # {'func': glove2npy, 'args': (input_paths['numberbatch']['txt'], output_paths['numberbatch']['npy'], output_paths['numberbatch']['vocab'], True)},
             # {'func': load_pretrained_embeddings,
             #  'args': (output_paths['numberbatch']['npy'], output_paths['numberbatch']['vocab'], output_paths[kg_name]['vocab'], False, output_paths['numberbatch']['concept_npy'])},
-            {'func': extract_english, 'args': (input_paths[kg_name]['csv'], output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'], kg_name)},
+            # {'func': extract_english, 'args': (input_paths[kg_name]['csv'], output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'], kg_name)},
             #{'func': construct_graph, 'args': (output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'],
             #                                   output_paths[kg_name]['unpruned-graph'], False, kg_name)},
             #{'func': construct_graph, 'args': (output_paths[kg_name]['csv'], output_paths[kg_name]['vocab'],
             #                                   output_paths[kg_name]['pruned-graph'], True, kg_name)},
-            #{'func': create_matcher_patterns, 'args': (output_paths[kg_name]['vocab'], output_paths[kg_name]['patterns'])},
+            {'func': create_matcher_patterns, 'args': (output_paths[kg_name]['vocab'], output_paths[kg_name]['patterns'])},
         ],
         'csqa': [
             # {'func': convert_to_entailment, 'args': (input_paths['csqa']['train'], output_paths['csqa']['statement']['train'])},
@@ -327,12 +331,12 @@ def main():
             {'func': convert_to_mcscript_statement, 'args': (input_paths['mcscript']['train'], output_paths['mcscript']['statement']['train'])},
             {'func': convert_to_mcscript_statement, 'args': (input_paths['mcscript']['dev'], output_paths['mcscript']['statement']['dev'])},
             {'func': convert_to_mcscript_statement, 'args': (input_paths['mcscript']['test'], output_paths['mcscript']['statement']['test'])},
-            # {'func': ground, 'args': (output_paths['mcscript']['statement']['train'], output_paths[kg_name]['vocab'],
-            #                           output_paths[kg_name]['patterns'], output_paths['mcscript']['grounded']['train'], args.nprocs)},
-            # {'func': ground, 'args': (output_paths['mcscript']['statement']['dev'], output_paths[kg_name]['vocab'],
-            #                           output_paths[kg_name]['patterns'], output_paths['mcscript']['grounded']['dev'], args.nprocs)},
-            # {'func': ground, 'args': (output_paths['mcscript']['statement']['test'], output_paths[kg_name]['vocab'],
-            #                           output_paths[kg_name]['patterns'], output_paths['mcscript']['grounded']['test'], args.nprocs)},
+            {'func': ground, 'args': (output_paths['mcscript']['statement']['dev'], output_paths[kg_name]['vocab'],
+                                      output_paths[kg_name]['patterns'], output_paths['mcscript']['grounded']['dev'], args.nprocs)},
+            {'func': ground, 'args': (output_paths['mcscript']['statement']['train'], output_paths[kg_name]['vocab'],
+                                      output_paths[kg_name]['patterns'], output_paths['mcscript']['grounded']['train'], args.nprocs)},
+            {'func': ground, 'args': (output_paths['mcscript']['statement']['test'], output_paths[kg_name]['vocab'],
+                                      output_paths[kg_name]['patterns'], output_paths['mcscript']['grounded']['test'], args.nprocs)},
         ],
         'exp': [
             {'func': convert_to_entailment,
